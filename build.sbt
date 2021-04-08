@@ -10,5 +10,6 @@ lazy val root = project
 
 		libraryDependencies ++= Seq(
 			"dev.zio" %% "zio" % "1.0.5",
-			"com.novocode" % "junit-interface" % "0.11" % "test")
+			"org.scalatest" %% "scalatest" % "3.2.5" % "test"
+		)
 	)

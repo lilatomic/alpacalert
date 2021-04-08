@@ -1,5 +1,5 @@
 package ca.lilatomic.alpacalert
 
-trait Sensor[A] {
-	def sense(): A
+trait Sensor {
+	def sense(): Status
 }
