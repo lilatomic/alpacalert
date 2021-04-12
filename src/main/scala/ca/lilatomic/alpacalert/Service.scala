@@ -1,12 +1,12 @@
 package ca.lilatomic.alpacalert
 
-trait Service {
+trait Service(val name: String) {
 	def status(): Status
 }
 
 /**
  * a service with some basic metadata
  */
-class BasicService(val name: String, val system: System) extends Service {
+class BasicService(name: String, val system: System) extends Service(name) {
 	override def status(): Status = system.status()
 }
