@@ -20,4 +20,6 @@ object Status {
 	object Up extends Up
 
 	object Down extends Down
+
+	object NotFound extends Down
 }
