@@ -1,3 +1,5 @@
+package ca.lilatomic.alpacalert
+
 
 import ca.lilatomic.alpacalert._
 import org.scalatest.funsuite.AnyFunSuite
@@ -50,7 +52,7 @@ class SystemUsageTest extends AnyFunSuite {
 class DynamicSetup extends AnyFunSuite {
 
 	/**
-	 * Demonstrates how to dynamically construct Services from lists of sensors and a definition for a custom sensor
+	 * Demonstrates how to dynamically construct Services from lists of ca.lilatomic.alpacalert.sensors and a definition for a custom sensor
 	 */
 	test("Dynamic setup") {
 		val sensorsA = Seq(false, false, true).map(mkSensor(_))
