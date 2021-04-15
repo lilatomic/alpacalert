@@ -25,7 +25,7 @@ class GrafanaTest extends AnyFunSuite {
 	test("Pull sensors from GrafanaConnection") {
 		val grafana = getDemo()
 
-		val system = SystemPar(Seq(grafana(1), grafana(2)))
+		val system = SystemPar("TestSystem", Seq(grafana(1), grafana(2)))
 		val service = new BasicService("Grafana Test", system)
 
 		println(service.status())
@@ -35,7 +35,7 @@ class GrafanaTest extends AnyFunSuite {
 		val grafana = getDemo()
 
 		val by_dashboard = grafana.values.groupBy(_.dashboardUid)
-		val services = by_dashboard.map(e => new BasicService(e._1, new SystemSeq(e._2.toSeq)))
+		val services = by_dashboard.map(e => new BasicService(e._1, new SystemSeq("TestSystem" + e._1, e._2.toSeq)))
 
 		assert(services.size === 6)
 	}

@@ -9,7 +9,9 @@ def SensorUp = MockSensor(Status.Up)
 def mkSensor(up: Boolean): Sensor = MockSensor(if (up) Status.Up else Status.Down)
 
 class MockSensor(val data: Status) extends Sensor {
-	def sense(): Status = data
+	val name: String = "TestSystem"
+
+	def status(): Status = data
 }
 
 class SensorUsage extends AnyFunSuite {
@@ -22,7 +24,7 @@ class SensorUsage extends AnyFunSuite {
 		)
 		val sensors = spec.map(e => (e._1, mkSensor(e._2))).toMap
 
-		val statuses = sensors.map(_._2.sense())
+		val statuses = sensors.map(_._2.status())
 
 		assert(statuses === Seq(Status.Down, Status.Down, Status.Up))
 	}
@@ -30,17 +32,17 @@ class SensorUsage extends AnyFunSuite {
 
 class SystemUsageTest extends AnyFunSuite {
 	test("SystemPar with All UP") {
-		val system = new SystemPar(Seq(SensorUp, SensorUp))
+		val system = new SystemPar("TestSystem", Seq(SensorUp, SensorUp))
 		assert(Status.Up === system.status())
 	}
 
 	test("SystemPar wth some UP") {
-		val system = new SystemPar(Seq(SensorUp, SensorDown))
+		val system = new SystemPar("TestSystem", Seq(SensorUp, SensorDown))
 		assert(Status.Up === system.status())
 	}
 
 	test("SystemPar with all DOWN") {
-		val system = new SystemPar(Seq(SensorDown, SensorDown))
+		val system = new SystemPar("TestSystem", Seq(SensorDown, SensorDown))
 		assert(Status.Down === system.status())
 	}
 }
@@ -55,7 +57,11 @@ class DynamicSetup extends AnyFunSuite {
 		val sensorsB = Seq(false, true, true).map(mkSensor(_))
 
 		class TestSystem(val sensorA: Sensor, sensorB: Sensor) extends System {
-			override def status() = Status.&(sensorA.sense(), sensorB.sense())
+			val name: String = "TestSystem"
+
+			override def status() = Status.&(sensorA.status(), sensorB.status())
+
+			override def children(): Seq[Sensor] = Seq(sensorA, sensorB)
 		}
 
 		val systems = sensorsA.zip(sensorsB).map(e => new TestSystem(e._1, e._2))

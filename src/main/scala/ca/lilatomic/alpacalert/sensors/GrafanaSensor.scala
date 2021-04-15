@@ -10,8 +10,8 @@ import sttp.client3.circe._
 import sttp.model.Uri
 import zio._
 
-class GrafanaSensor(val id: Integer, val dashboardUid: String, val name: String, val state: String, val url: String) extends Sensor {
-	override def sense(): Status = {
+class GrafanaSensor(val id: Integer, val dashboardUid: String, val name: String, val state: String, val url: String) extends Sensor() {
+	override def status(): Status = {
 		state match {
 			case "alerting" => Status.Down
 			case "ok" => Status.Up
