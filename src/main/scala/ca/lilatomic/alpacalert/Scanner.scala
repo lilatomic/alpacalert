@@ -1,25 +1,18 @@
 package ca.lilatomic.alpacalert
 
 sealed trait Scanner {
+	val name: String
 
+	def status(): Status
 }
 
 trait Sensor() extends Scanner {
-	val name: String
-
-	def status(): Status
 }
 
 trait System() extends Scanner {
-	val name: String
-
-	def status(): Status
-
-	def children(): Seq[Sensor]
+	def children(): Seq[Scanner]
 }
 
 trait Service() extends Scanner {
-	val name: String
-
-	def status(): Status
+	def children(): Seq[Scanner]
 }

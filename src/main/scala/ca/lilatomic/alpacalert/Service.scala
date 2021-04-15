@@ -7,4 +7,6 @@ import ca.lilatomic.alpacalert.System
  */
 class BasicService(val name: String, val system: System) extends Service() {
 	override def status(): Status = system.status()
+
+	override def children(): Seq[Scanner] = Seq(system)
 }
