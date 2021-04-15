@@ -2,12 +2,6 @@ package ca.lilatomic.alpacalert
 
 import ca.lilatomic.alpacalert.System
 
-trait Service() {
-	val name: String
-
-	def status(): Status
-}
-
 /**
  * a service with some basic metadata
  */
