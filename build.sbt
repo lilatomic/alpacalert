@@ -2,7 +2,9 @@ val dottyVersion = "3.0.0-RC1"
 
 lazy val root = project
 	.in(file("."))
+	.configs(IntegrationTest)
 	.settings(
+		Defaults.itSettings,
 		name := "dotty-simple",
 		version := "0.1.0",
 
@@ -17,7 +19,7 @@ lazy val root = project
 			"io.circe" %% "circe-generic" % circeVersion,
 			"io.circe" %% "circe-parser" % circeVersion,
 
-			"org.scalatest" %% "scalatest" % "3.2.5" % "test",
+			"org.scalatest" %% "scalatest" % "3.2.5" % "test,it",
 		)
 	)
 val circeVersion = "0.14.0-M4+"
