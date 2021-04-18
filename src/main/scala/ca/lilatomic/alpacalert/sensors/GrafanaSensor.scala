@@ -33,9 +33,11 @@ case class GrafanaAlert
 type GrafanaConnection = Has[GrafanaConnection.Service]
 
 object GrafanaConnection {
-	def fromUrl(url: Uri): ZLayer[Any, Nothing, GrafanaConnection] = ZLayer.succeed(
+	val demoGrafana: ZLayer[Any, Nothing, GrafanaConnection] = fromConfig(GrafanaConnectionConfig(uri"https://play.grafana.org/api/alerts", GrafanaConnectionConfig.AuthNone))
+
+	def fromConfig(cfg: GrafanaConnectionConfig): ZLayer[Any, Nothing, GrafanaConnection] = ZLayer.succeed(
 		new Service {
-			val request = basicRequest.get(url).response(asJson[List[GrafanaAlert]])
+			val request = basicRequest.get(cfg.url).response(asJson[List[GrafanaAlert]])
 			val backend = HttpURLConnectionBackend()
 
 			override def getAlerts() = {
@@ -51,8 +53,6 @@ object GrafanaConnection {
 			}
 		})
 
-	val demoGrafana: ZLayer[Any, Nothing, GrafanaConnection] = fromUrl(uri"https://play.grafana.org/api/alerts")
-
 	def alert2sensor(a: GrafanaAlert): GrafanaSensor = new GrafanaSensor(a.id, a.dashboardUid, a.name, a.state, a.url)
 
 	def getAlerts(): RIO[GrafanaConnection, Map[Integer, GrafanaSensor]] = ZIO.accessM(_.get.getAlerts())
@@ -61,4 +61,17 @@ object GrafanaConnection {
 		def getAlerts(): Task[Map[Integer, GrafanaSensor]]
 		//		def getSensorById(id: Integer): Option[Sensor]
 	}
+}
+
+case class GrafanaConnectionConfig(url: Uri, auth: GrafanaConnectionConfig.Auth)
+
+object GrafanaConnectionConfig {
+
+	sealed class Auth
+
+	case class AuthBasic(user: String, password: String) extends Auth
+
+	case class AuthToken(token: String) extends Auth
+
+	object AuthNone extends Auth
 }
