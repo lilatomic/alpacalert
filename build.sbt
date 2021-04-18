@@ -10,6 +10,8 @@ lazy val root = project
 
 		scalaVersion := dottyVersion,
 
+		IntegrationTest / fork := true,
+
 		libraryDependencies ++= Seq(
 			"dev.zio" %% "zio" % "1.0.5+",
 			"com.softwaremill.sttp.client3" %% "core" % sttpVersion,
@@ -20,7 +22,9 @@ lazy val root = project
 			"io.circe" %% "circe-parser" % circeVersion,
 
 			"org.scalatest" %% "scalatest" % "3.2.5" % "test,it",
+			"com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersScalaVersion % "it"
 		)
 	)
 val circeVersion = "0.14.0-M4+"
 val sttpVersion = "3.2.3"
+val testcontainersScalaVersion = "0.39.3+"
