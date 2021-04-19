@@ -33,9 +33,7 @@ case class GrafanaAlert
 type GrafanaConnection = Has[GrafanaConnection.Service]
 
 object GrafanaConnection {
-	val demoGrafana: ZLayer[Any, Nothing, GrafanaConnection] = fromConfig(GrafanaConnectionConfig(uri"https://play.grafana.org/api/alerts", GrafanaConnectionConfig.AuthNone))
-
-	def fromConfig(cfg: GrafanaConnectionConfig): ZLayer[Any, Nothing, GrafanaConnection] = ZLayer.succeed(
+	val fromConfig: ZLayer[Has[GrafanaConnectionConfig], Nothing, GrafanaConnection] = ZLayer.fromService { cfg =>
 		new Service {
 			val request = basicRequest.get(cfg.url).response(asJson[List[GrafanaAlert]])
 			val backend = HttpURLConnectionBackend()
@@ -51,7 +49,12 @@ object GrafanaConnection {
 					}
 				}
 			}
-		})
+		}
+	}
+
+	val demoGrafana: ZLayer[Any, Nothing, GrafanaConnection] = {
+		ZLayer.succeed(GrafanaConnectionConfig(uri"https://play.grafana.org/api/alerts", GrafanaConnectionConfig.AuthNone)) >>> fromConfig
+	}
 
 	def alert2sensor(a: GrafanaAlert): GrafanaSensor = new GrafanaSensor(a.id, a.dashboardUid, a.name, a.state, a.url)
 
