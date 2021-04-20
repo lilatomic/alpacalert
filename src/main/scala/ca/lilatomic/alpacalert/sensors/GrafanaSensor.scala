@@ -70,7 +70,7 @@ case class GrafanaConnectionConfig(url: Uri, auth: GrafanaConnectionConfig.Auth)
 
 object GrafanaConnectionConfig {
 
-	sealed class Auth
+	sealed trait Auth
 
 	case class AuthBasic(user: String, password: String) extends Auth
 
