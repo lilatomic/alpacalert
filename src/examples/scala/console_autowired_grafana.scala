@@ -1,14 +1,14 @@
+import ca.lilatomic.alpacalert.sensors.{GrafanaConnection, GrafanaConnectionConfig}
+import ca.lilatomic.alpacalert.visualisers.ConsoleVisualiser
 import ca.lilatomic.alpacalert.{BasicService, SystemSeq}
+import sttp.client3._
+import sttp.model.Uri
+import zio._
+import zio.clock._
+import zio.console._
+import zio.duration.durationInt
 
 import java.io.IOException
-import zio.{ZIO, URIO, Has}
-import zio.console._
-import zio.clock._
-import zio.Schedule
-import zio._
-import zio.duration.durationInt
-import ca.lilatomic.alpacalert.sensors.GrafanaConnection
-import ca.lilatomic.alpacalert.visualisers.ConsoleVisualiser
 
 /**
  * This example shows how to quickly query which grafana dashboards are alerting.
@@ -28,9 +28,11 @@ object console_autowired_grafana extends zio.App {
 	 */
 	val schedule = Schedule.fixed(10.seconds) && Schedule.forever
 
+	val grafanaConfig = ZLayer.succeed(GrafanaConnectionConfig(uri"https://play.grafana.org/api/alerts", GrafanaConnectionConfig.AuthNone))
+
 	def run(args: List[String]): ZIO[zio.ZEnv, Nothing, ExitCode] = {
 		program
-			.provideCustomLayer(GrafanaConnection.demoGrafana)
+			.provideCustomLayer(grafanaConfig >>> GrafanaConnection.fromConfig)
 			.repeat(schedule)
 			.exitCode
 	}
