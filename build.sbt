@@ -14,8 +14,8 @@ lazy val root = project
 
 		libraryDependencies ++= dependencies,
 	)
-lazy val examples = project
-	.in(file("examples"))
+lazy val examples = (project
+	in (file("examples")))
 	.dependsOn(root)
 	.settings(
 		name := "alpacalert-examples",
@@ -24,7 +24,9 @@ lazy val examples = project
 
 		IntegrationTest / fork := false,
 
-		libraryDependencies ++= dependencies,
+		libraryDependencies ++= dependencies ++ Seq(
+			"io.d11" %% "zhttp" % "1.0.0.0-RC15"
+		),
 	)
 val circeVersion = "0.14.0-M4+"
 val sttpVersion = "3.2.3"
