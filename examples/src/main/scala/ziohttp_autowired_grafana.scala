@@ -13,7 +13,7 @@ object ziohttp_autowired_grafana extends zio.App {
 	val program: ZIO[GrafanaConnection, Throwable, String] = for {
 		grafana <- GrafanaConnection.getAlerts()
 		by_dashboard <- ZIO.succeed(grafana.values.groupBy(_.dashboardUid))
-		services <- ZIO.succeed(by_dashboard.map(e => new BasicService(e._1, new SystemSeq("TestSystem " + e._1, e._2.toSeq))).take(2).toSeq)
+		services <- ZIO.succeed(by_dashboard.map(e => new BasicService(e._1, new SystemSeq("TestSystem " + e._1, e._2.toSeq))).toSeq)
 		content <- ZIO.succeed(HtmlVisualiser.visualise(services))
 	} yield (content)
 	val app = Http.collectM {
@@ -22,9 +22,11 @@ object ziohttp_autowired_grafana extends zio.App {
 
 	def htmlResponse(html: String): UResponse =
 		Response.http(
-			content = HttpContent.Complete(html),
+			content = httpDataFromStr(html),
 			headers = List(Header.custom("Content-Type", "text/html")),
 		)
+
+	def httpDataFromStr(s: String): HttpData[Any, Nothing] = HttpData.CompleteData(Chunk.fromArray(s.getBytes(HTTP_CHARSET)))
 
 	override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = Server.start(8080, app).provideCustomLayer(GrafanaConnection.demoGrafana).exitCode
 }
