@@ -20,7 +20,8 @@ object console_autowired_grafana extends zio.App {
 		grafana <- GrafanaConnection.getAlerts()
 		by_dashboard <- ZIO.succeed(grafana.values.groupBy(_.dashboardUid))
 		services <- ZIO.succeed(by_dashboard.map(e => new BasicService(e._1, new SystemSeq("TestSystem " + e._1, e._2.toSeq))))
-		_ <- putStrLn(services.map(ConsoleVisualiser.visualise(_)).mkString(""))
+		servicesStr <- ZIO.collectAll(services.map(ConsoleVisualiser.visualise(_)))
+		_ <- putStrLn(servicesStr.mkString(""))
 	} yield ()
 
 	/**
