@@ -11,11 +11,11 @@ import sttp.model.Uri
 import zio._
 
 class GrafanaSensor(val id: Integer, val dashboardUid: String, val name: String, val state: String, val url: String) extends Sensor() {
-	override def status(): Status = {
+	override def status(): UIO[Status] = {
 		state match {
-			case "alerting" => Status.Down
-			case "ok" => Status.Up
-			case "no_data" => Status.Down
+			case "alerting" => ZIO.succeed(Status.Down)
+			case "ok" => ZIO.succeed(Status.Up)
+			case "no_data" => ZIO.succeed(Status.Down)
 		}
 	}
 }
