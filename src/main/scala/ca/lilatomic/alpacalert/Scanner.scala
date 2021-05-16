@@ -1,9 +1,10 @@
 package ca.lilatomic.alpacalert
+import zio.UIO
 
 sealed trait Scanner {
 	val name: String
 
-	def status(): Status
+	def status(): UIO[Status]
 }
 
 trait Sensor() extends Scanner {
