@@ -1,32 +1,46 @@
 package ca.lilatomic.alpacalert.visualisers
 
 import ca.lilatomic.alpacalert.{Scanner, Status}
+import zio.{UIO, ZIO}
 
 object HtmlVisualiser {
-
-
-	def visualise(scanners: Seq[Scanner]): String =
-		root(
-			scanners.map(e => tag("ul", tag("li", visualiseItem(e)))).mkString
-		)
-
-	def visualiseItem(scanner: Scanner): String = {
-		tag("div",
-			statusComponent(scanner.status())
-				+ (scanner match {
-				case s: ca.lilatomic.alpacalert.Sensor => " sensor " + tag("strong", s.name)
-				case s: ca.lilatomic.alpacalert.System =>
-					tag("strong", scanner.name)
-						+ tag("ul",
-						s.children().map(e => tag("li", visualiseItem(e))).mkString
-					)
-				case s: ca.lilatomic.alpacalert.Service => " Service " + tag("strong", s.name)
-					+ tag("ul",
-					s.children().map(e => tag("li", visualiseItem(e))).mkString
-				)
-			})
-		)
+	def visualise(scanners: Seq[Scanner]): UIO[String] = {
+		for {
+			visualised: String <- ZIO.collectAll(for {
+				s <- scanners
+			} yield (visualiseItem(s))).map(e => e.reduce(_.concat(_)))
+		} yield (root(
+			tag("ul", tag("li", visualised))
+		))
 	}
+
+	def renderChildren(children: Seq[Scanner]): UIO[String] = {
+		ZIO.reduceAll(ZIO.succeed(""), children.map(visualiseItem(_).map(s => tag("li", s))))(_.concat(_))
+	}
+
+	def visualiseItem(scanner: Scanner): UIO[String] = for {
+		status <- scanner.status()
+		statusStr = statusComponent(status)
+		scannerStr: String <- (scanner match {
+			case s: ca.lilatomic.alpacalert.Sensor => ZIO.succeed(" sensor " + tag("strong", s.name))
+			case s: ca.lilatomic.alpacalert.System => for {
+				c <- renderChildren(s.children())
+			} yield (
+				" sensor " + tag("strong", scanner.name)
+					+ tag("ul", c)
+				)
+			case s: ca.lilatomic.alpacalert.Service => for {
+				c <- renderChildren(s.children())
+			} yield (
+				" Service " + tag("strong", s.name)
+					+ tag("ul", c)
+				)
+		})
+	} yield (
+		tag("div",
+			statusStr
+				+ scannerStr
+		))
 
 	def statusComponent(status: Status): String = status match {
 		case _: ca.lilatomic.alpacalert.Up => "\u2714️"

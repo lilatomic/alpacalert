@@ -8,8 +8,6 @@ lazy val examples = (project
 		version := "0.1.0",
 		scalaVersion := dottyVersion,
 
-		IntegrationTest / fork := false,
-
 		libraryDependencies ++= dependencies ++ Seq(
 			"io.d11" %% "zhttp" % "1.0.0.0-RC15+31-46c879fd-SNAPSHOT"
 			//			"io.d11" %% "zhttp" % "1.0.0.0-RC15"
