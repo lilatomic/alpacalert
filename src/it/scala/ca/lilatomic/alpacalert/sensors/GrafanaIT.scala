@@ -21,6 +21,11 @@ import scala.io.Source
 import scala.util.Random
 
 class GrafanaIT extends AnyFunSuite with GivenWhenThen with ForAllTestContainer {
+	// overrides for clarifying accidental overides scenario.
+	override def run(testName: Option[String], args: org.scalatest.Args): org.scalatest.Status = super.run(testName, args)
+
+	override def runTest(testName: String, args: org.scalatest.Args): Status = super.runTest(testName, args)
+
 	val grafanaPort = 3000
 	val testAdminPassword = "pEyWpy3Ogt3fpRmF"
 	override val container: GenericContainer = GenericContainer(

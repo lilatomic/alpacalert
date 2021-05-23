@@ -31,7 +31,7 @@ lazy val root = project
 val dottyVersion = "3.0.0-RC3"
 val circeVersion = "0.14.0-M6+"
 val sttpVersion = "3.3.0"
-val testcontainersScalaVersion = "0.39.3+"
+val testcontainersScalaVersion = "0.39.4"
 val dependencies = Seq(
 	"dev.zio" %% "zio" % "1.0.7+",
 	"com.softwaremill.sttp.client3" %% "core" % sttpVersion,
