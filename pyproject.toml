@@ -13,8 +13,13 @@ known_first_party=[
     "alpacalert"
 ]
 
-[tool.black]
-line_length=180
+[tool.ruff]
+line-length=180
+target-version = "py310"
+
+[tool.ruff.format]
+
+indent-style="tab"
 
 [tool.mypy]
 pretty = true

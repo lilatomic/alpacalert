@@ -3,13 +3,17 @@ pants_version = "2.21.0dev6"
 backend_packages = [
 	"pants.backend.python",
 	"pants.backend.experimental.python",
-	"pants.backend.python.lint.black",
-	"pants.backend.python.lint.isort",
+	"pants.backend.experimental.python.lint.ruff",
 	"pants.backend.python.lint.flake8",
 	"pants.backend.python.lint.autoflake",
 	"pants.backend.python.lint.pylint",
 	"pants.backend.python.typecheck.mypy",
 	"pants.backend.experimental.adhoc",
+]
+
+[source]
+root_patterns = [
+	"src/main/python",
 ]
 
 [python]
@@ -19,19 +23,12 @@ enable_resolves = true
 [python.resolves]
 python-default = "cicd/python-default.lock"
 mypy = "cicd/mypy.lock"
-black = "cicd/black.lock"
 
 [pylint]
 config = ".pylintrc"
 
 [flake8]
 config = ".flake8"
-
-[black]
-args = ["--use-tabs"]
-console_script = "tan"
-install_from_resolve = "black"
-interpreter_constraints = ["CPython>=3.8"]
 
 [test]
 use_coverage = true
@@ -43,4 +40,4 @@ report = ["xml", "html"]
 [mypy]
 install_from_resolve = "mypy"
 requirements = ["//:mypy"]
-interpreter_constraints = ["CPython>=3.8"]
+interpreter_constraints = ["CPython>=3.10"]
