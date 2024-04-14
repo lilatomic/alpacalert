@@ -5,35 +5,41 @@ from functools import reduce
 
 from pydantic import BaseModel
 
-from alpacalert.models import Log, Sensor, Service, State, Status, System
+from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
 
 class SystemAny(System, BaseModel):
 	"""System that is PASSING if any of its Sensors are PASSING"""
 
-	sensors: list[Sensor]
+	scanners: list[Scanner]
 
 	def status(self) -> Status:
-		statuses = [sensor.status() for sensor in self.sensors]
-		state = reduce(operator.or_, statuses)
+		statuses = [sensor.status() for sensor in self.scanners]
+		state = reduce(operator.or_, (status.state for status in statuses))
 		return Status(
 			state=state,
 			messages=list(itertools.chain.from_iterable(status.messages for status in statuses))
 		)
+
+	def children(self) -> list[Scanner]:
+		return self.scanners
 
 
 class SystemAll(System, BaseModel):
 	"""System that is PASSING if all of its Sensors are PASSING"""
 
-	sensors: list[Sensor]
+	scanners: list[Scanner]
 
 	def status(self) -> Status:
-		statuses = [sensor.status() for sensor in self.sensors]
-		state = reduce(operator.and_, statuses)
+		statuses = [sensor.status() for sensor in self.scanners]
+		state = reduce(operator.and_, (status.state for status in statuses))
 		return Status(
 			state=state,
 			messages=list(itertools.chain.from_iterable(status.messages for status in statuses))
 		)
+
+	def children(self) -> list[Scanner]:
+		return self.scanners
 
 
 class ServiceBasic(Service, BaseModel):
@@ -44,6 +50,9 @@ class ServiceBasic(Service, BaseModel):
 	def status(self) -> Status:
 		return self.system.status()
 
+	def children(self) -> list[Scanner]:
+		return [self.system]
+
 
 class SensorConstant(Sensor, BaseModel):
 	"""
@@ -51,10 +60,13 @@ class SensorConstant(Sensor, BaseModel):
 
 	Useful to construct Sensors which don't determine their own status.
 	"""
-	_status: Status
+	val: Status
 
 	def status(self) -> Status:
-		return self._status
+		return self.val
+
+	def children(self) -> list[Scanner]:
+		return []
 
 	@classmethod
 	def failing(cls, messages: list[Log]):

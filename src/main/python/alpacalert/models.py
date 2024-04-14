@@ -73,14 +73,21 @@ class State(Enum):
 class Status(BaseModel):
 	"""Status of a Scanner"""
 	state: State
-	messages: list[Log]
+	messages: list[Log] = []
 
 
-class Scanner(ABC):
+class Scanner(BaseModel, ABC):
 	"""Common interface for Sensors, Systems, and Services"""
+
+	name: str
+
 	@abstractmethod
 	def status(self) -> Status:
 		"""The status of this scanner"""
+
+	@abstractmethod
+	def children(self) -> list[Scanner]:
+		"""Detailed statuses"""
 
 
 class Sensor(Scanner, ABC):
