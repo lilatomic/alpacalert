@@ -5,7 +5,7 @@ from functools import reduce
 
 from pydantic import BaseModel
 
-from alpacalert.models import Sensor, Status, System
+from alpacalert.models import Sensor, Service, Status, System
 
 
 class SystemAny(System, BaseModel):
@@ -34,3 +34,12 @@ class SystemAll(System, BaseModel):
 			state=state,
 			messages=list(itertools.chain.from_iterable(status.messages for status in statuses))
 		)
+
+
+class BasicService(Service, BaseModel):
+	"""A basic service that relies on a single system"""
+
+	system: System
+
+	def status(self) -> Status:
+		return self.system.status()
