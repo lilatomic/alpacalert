@@ -5,7 +5,7 @@ from functools import reduce
 
 from pydantic import BaseModel
 
-from alpacalert.models import Sensor, Service, Status, System
+from alpacalert.models import Log, Sensor, Service, State, Status, System
 
 
 class SystemAny(System, BaseModel):
@@ -36,10 +36,34 @@ class SystemAll(System, BaseModel):
 		)
 
 
-class BasicService(Service, BaseModel):
-	"""A basic service that relies on a single system"""
+class ServiceBasic(Service, BaseModel):
+	"""A basic Service that relies on a single System"""
 
 	system: System
 
 	def status(self) -> Status:
 		return self.system.status()
+
+
+class SensorConstant(Sensor, BaseModel):
+	"""
+	A Sensor that provides a constant value.
+
+	Useful to construct Sensors which don't determine their own status.
+	"""
+	_status: Status
+
+	def status(self) -> Status:
+		return self._status
+
+	@classmethod
+	def failing(cls, messages: list[Log]):
+		"""Helper for failing sensors"""
+
+		return cls(_status=Status(state=State.FAILING, messages=messages))
+
+	@classmethod
+	def passing(cls, messages: list[Log]):
+		"""Helper for passing sensors"""
+
+		return cls(_status=Status(state=State.PASSING, messages=messages))
