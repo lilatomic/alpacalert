@@ -1,6 +1,7 @@
+"""Alpacalert models."""
 from __future__ import annotations
 
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from enum import Enum
 
 from pydantic import BaseModel
@@ -28,13 +29,55 @@ class State(Enum):
 	FAILING = "failing"
 	UNKNOWN = "unknown"
 
+	def __and__(self, other: State) -> State:
+		"""
+		The least favourable state.
+
+		PASSING < UNKNOWN < FAILING
+		"""
+		match self:
+			case State.PASSING:
+				return other
+			case State.FAILING:
+				return State.FAILING
+			case State.UNKNOWN:
+				match other:
+					case State.PASSING:
+						return State.UNKNOWN
+					case State.FAILING:
+						return State.FAILING
+					case State.UNKNOWN:
+						return State.UNKNOWN
+
+	def __or__(self, other: State) -> State:
+		"""
+		The most favourable state.
+
+		PASSING > UNKNOWN > FAILING
+		"""
+		match self:
+			case State.PASSING:
+				return State.PASSING
+			case State.FAILING:
+				return other
+			case State.UNKNOWN:
+				match other:
+					case State.PASSING:
+						return State.PASSING
+					case State.FAILING:
+						return State.UNKNOWN
+					case State.UNKNOWN:
+						return State.UNKNOWN
+
 
 class Status(BaseModel):
+	"""Status of a Scanner"""
 	state: State
 	messages: list[Log]
 
 
 class Scanner(ABC):
+	"""Common interface for Sensors, Systems, and Services"""
 	@abstractmethod
 	def status(self) -> Status:
 		"""The status of this scanner"""
@@ -59,5 +102,8 @@ class Service(Scanner, ABC):
 	"""
 	These are capabilities that your infrastructure provides.
 
-	These might be customer-facing, like the actual application; or internal-facing, like a message queue; or parts of your development infrastructure, like the status of build servers.
+	These might be:
+	- customer-facing, like the actual application
+	- internal-facing, like a message queue
+	- parts of your development infrastructure, like the status of build servers
 	"""
