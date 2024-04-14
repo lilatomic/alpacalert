@@ -1,0 +1,3 @@
+tan==22.12.1
+# click!=8.1.*
+typing-extensions>=3.10.0.0

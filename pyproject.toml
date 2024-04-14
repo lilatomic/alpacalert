@@ -1,0 +1,32 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "twine",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.isort]
+profile="black"
+line_length=180
+known_first_party=[
+    "alpacalert"
+]
+
+[tool.black]
+line_length=180
+
+[tool.mypy]
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "testcontainers.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: integration tests",
+    "admin: tests that need some amount of admin",
+]
