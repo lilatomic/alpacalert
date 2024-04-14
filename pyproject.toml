@@ -19,7 +19,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 fixable = ["ALL"]
-extend-select = ["I"]
+extend-select = ["I", "W", "E"]
+preview = true
+ignore = ["W191"]
 
 [tool.ruff.format]
 indent-style="tab"
