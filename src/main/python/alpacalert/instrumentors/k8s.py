@@ -62,12 +62,25 @@ class InstrumentorPods(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_pod(pod: kr8s.objects.Pod) -> Scanner:
+		pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, {})
+		container_sensors = [InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses]
 		scanners = [
-			*evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, {})(pod.status.conditions),
+			*pod_sensors(pod.status.conditions),
 			SensorConstant(name="phase is running", val=Status(state=State.PASSING if pod.status.phase == "Running" else State.FAILING)),
+			*container_sensors,
 		]
 
 		return SystemAll(name=pod.name, scanners=scanners)
+
+	@staticmethod
+	def instrument_container(container_status) -> Scanner:
+		if container_status.ready and container_status.started:
+			state = State.PASSING
+		else:
+			state = State.FAILING
+
+		# TODO: add state as message
+		return SensorConstant(name=f"Pod is running: {container_status.name}", val=Status(state=state))
 
 	def instrument(self) -> list[Scanner]:
 		pods = kr8s.get("pods")
