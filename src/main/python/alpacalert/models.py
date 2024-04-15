@@ -114,3 +114,23 @@ class Service(Scanner, ABC):
 	- internal-facing, like a message queue
 	- parts of your development infrastructure, like the status of build servers
 	"""
+
+
+class Visualiser(ABC):
+	"""Visualise a Service"""
+
+	@abstractmethod
+	def visualise(self, service: Service):
+		"""Visualise a Service"""
+
+
+class Instrumentor(ABC):
+	"""
+	Instrument an external entity by generating Sensors, Systems, or Services.
+	"""
+
+	@abstractmethod
+	def instrument(self) -> list[Scanner]:
+		"""
+		Instrument an external entity by generating Sensors, Systems, or Services.
+		"""

@@ -1,11 +1,9 @@
 import itertools
 
-from pydantic import BaseModel
-
-from alpacalert.models import Scanner, Service
+from alpacalert.models import Log, Scanner, Service, Visualiser
 
 
-class ConsoleVisualiser(BaseModel):
+class VisualiserConsole(Visualiser):
 	"""Visualise an alpacalert Service to the console"""
 
 	def visualise(self, service: Service):
