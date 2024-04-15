@@ -1,8 +1,8 @@
 from textwrap import dedent
 
 from alpacalert.generic import SensorConstant, ServiceBasic, SystemAll, SystemAny
-from alpacalert.models import State, Status
-from alpacalert.visualisers.console import ConsoleVisualiser
+from alpacalert.models import Log, Severity, State, Status
+from alpacalert.visualisers.console import VisualiserConsole
 
 
 def test_console_visualiser():
@@ -17,7 +17,7 @@ def test_console_visualiser():
 					scanners=[
 						SensorConstant(
 							name="test_sensor_0",
-							val=Status(state=State.PASSING)
+							val=Status(state=State.PASSING, messages=[Log(message="test message 0", severity=Severity.WARN)])
 						),
 						SensorConstant(
 							name="test_sensor_1",
@@ -32,18 +32,19 @@ def test_console_visualiser():
 			]
 		)
 	)
-	v = ConsoleVisualiser()
+	v = VisualiserConsole()
 
 	r = v.visualise(s)
 
 	expected = dedent(
 		"""\
-		State.PASSING : test_service
-			State.PASSING : test_system_0
-				State.FAILING : test_system_1
-					State.PASSING : test_sensor_0
-					State.FAILING : test_sensor_1
-				State.PASSING : test_sensor_2
+		passing : test_service
+			passing : test_system_0
+				failing : test_system_1
+					passing : test_sensor_0
+					- WARN: test message 0
+					failing : test_sensor_1
+				passing : test_sensor_2
 		"""
 	)
 
