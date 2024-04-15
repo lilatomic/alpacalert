@@ -55,6 +55,46 @@ class InstrumentorNode(Instrumentor, BaseModel):
 		return [self.instrument_node(node) for node in nodes]
 
 
+class InstrumentorConfigmaps(Instrumentor, BaseModel):
+	"""Instrument Kubernetes configmaps. Basically just an existance check"""
+
+	@staticmethod
+	def instrument_configmap(configmap: kr8s.objects.ConfigMap) -> Scanner:
+		return SensorConstant(name=f"configmap {configmap.name} exists", val=Status(state=State.PASSING))
+
+	@staticmethod
+	def exists(name: str) -> Scanner:
+		if any(e.name == "name" for e in kr8s.get("configmaps")):
+			state = State.PASSING
+		else:
+			state = State.FAILING
+
+		return SensorConstant(name=f"configmap {name} exists", val=Status(state=state))
+
+	def instrument(self) -> list[Scanner]:
+		return [self.instrument_configmap(configmap) for configmap in kr8s.get("configmaps")]
+
+
+class InstrumentorSecrets(Instrumentor, BaseModel):
+	"""Instrument Kubernetes secrets. Basically just an existance check"""
+
+	@staticmethod
+	def instrument_secret(secret: kr8s.objects.ConfigMap) -> Scanner:
+		return SensorConstant(name=f"secret {secret.name} exists", val=Status(state=State.PASSING))
+
+	@staticmethod
+	def exists(name: str) -> Scanner:
+		if any(e.name == "name" for e in kr8s.get("secrets")):
+			state = State.PASSING
+		else:
+			state = State.FAILING
+
+		return SensorConstant(name=f"secret {name} exists", val=Status(state=state))
+
+	def instrument(self) -> list[Scanner]:
+		return [self.instrument_secret(secret) for secret in kr8s.get("secrets")]
+
+
 class InstrumentorPods(Instrumentor, BaseModel):
 	"""Instrument Kubernetes Pods in a namespace"""
 
