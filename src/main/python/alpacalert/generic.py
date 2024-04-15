@@ -1,5 +1,4 @@
 """Generic Scanner components"""
-import itertools
 import operator
 from functools import reduce
 
@@ -16,10 +15,7 @@ class SystemAny(System, BaseModel):
 	def status(self) -> Status:
 		statuses = [sensor.status() for sensor in self.scanners]
 		state = reduce(operator.or_, (status.state for status in statuses))
-		return Status(
-			state=state,
-			messages=list(itertools.chain.from_iterable(status.messages for status in statuses))
-		)
+		return Status(state=state)
 
 	def children(self) -> list[Scanner]:
 		return self.scanners
@@ -33,10 +29,7 @@ class SystemAll(System, BaseModel):
 	def status(self) -> Status:
 		statuses = [sensor.status() for sensor in self.scanners]
 		state = reduce(operator.and_, (status.state for status in statuses))
-		return Status(
-			state=state,
-			messages=list(itertools.chain.from_iterable(status.messages for status in statuses))
-		)
+		return Status(state=state)
 
 	def children(self) -> list[Scanner]:
 		return self.scanners
