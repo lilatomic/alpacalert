@@ -5,7 +5,7 @@ from typing import Callable
 import kr8s
 from pydantic import BaseModel
 
-from alpacalert.generic import SensorConstant, SystemAll
+from alpacalert.generic import SensorConstant, SystemAll, SystemAny
 from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status, System
 
 
@@ -193,6 +193,26 @@ class InstrumentorDeployments(Instrumentor, BaseModel):
 	def instrument(self) -> list[Scanner]:
 		deployments = kr8s.get("deployments")
 		return [self.instrument_deployment(deployment) for deployment in deployments]
+
+
+class InstrumentorServices(Instrumentor, BaseModel):
+	"""Instrument Kubernetes services"""
+
+	# TODO: Consider using Endpoints resources
+
+	@staticmethod
+	def instrument_service(service: kr8s.objects.Service) -> Scanner:
+		"""Instrument a service"""
+		endpoint_pods = kr8s.get("pods", label_selector=service.spec.selector)
+		pod_sensor = SystemAny(
+			name="enpoints",
+			scanners=[InstrumentorPods.instrument_pod(e) for e in endpoint_pods],
+		)
+		return SystemAll(name=service.name, scanners=[pod_sensor])
+
+	def instrument(self) -> list[Scanner]:
+		services = kr8s.get("services")
+		return [self.instrument_service(service) for service in services]
 
 
 class InstrumentorK8s(Instrumentor, BaseModel):
