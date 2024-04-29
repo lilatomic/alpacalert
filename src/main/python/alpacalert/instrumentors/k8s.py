@@ -114,7 +114,10 @@ class InstrumentorPods(Instrumentor, BaseModel):
 	def instrument_pod(pod: kr8s.objects.Pod) -> Scanner:
 		"""Instrument a Pod"""
 		pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())
-		container_sensors = [InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses]
+		if "containerStatuses" in pod.status:
+			container_sensor = SystemAll(name="containers", scanners=[InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses])
+		else:
+			container_sensor = SensorConstant.failing(name="containers")  # TODO: more meaningful recovery
 		scanners = [
 			*pod_sensors(pod.status.conditions),
 			SensorConstant(name="phase is running", val=Status(state=State.PASSING if pod.status.phase == "Running" else State.FAILING)),
@@ -156,7 +159,7 @@ class InstrumentorPods(Instrumentor, BaseModel):
 
 def replica_statuses(target: int, kinds: set[str], status) -> System:
 	"""Compute statuses for the number of replicas"""
-	return SystemAll(name="replicas", scanners=[SensorConstant(name=kind, val=Status(state=State.from_bool(status[kind] == target))) for kind in kinds])
+	return SystemAll(name="replicas", scanners=[SensorConstant(name=kind, val=Status(state=State.from_bool(status.get(kind) == target))) for kind in kinds])
 
 
 class InstrumentorReplicaSets(Instrumentor, BaseModel):
