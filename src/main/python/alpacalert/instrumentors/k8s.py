@@ -9,6 +9,17 @@ from alpacalert.generic import SensorConstant, SystemAll, SystemAny
 from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status, System
 
 
+class StorageClass(kr8s.objects.APIObject):
+	kind = "StorageClass"
+	version = "storage.k8s.io/v1"
+	_asyncio = False
+	endpoint = "storageclasses"
+	plural = "storageclasses"
+	singular = "storageclass"
+	namespaced = False
+	scalable = False
+
+
 def condition_is(condition, passing_if: bool) -> State:
 	"""Evaluate the truthiness of a Kubernetes condition."""
 	return State.from_bool(condition["status"].lower() == str(passing_if).lower())
@@ -98,12 +109,59 @@ class InstrumentorSecrets(Instrumentor, BaseModel):
 		return SensorConstant(
 			name=f"secret {name} exists",
 			val=Status(
-				state=State.from_bool(any(e.name == "name" for e in kr8s.get("secrets"))),
+				state=State.from_bool(any(e.name == name for e in kr8s.get("secrets"))),
 			),
 		)
 
 	def instrument(self) -> list[Scanner]:
 		return [self.instrument_secret(secret) for secret in kr8s.get("secrets")]
+
+
+class InstrumentorStorageclass(Instrumentor, BaseModel):
+	"""Instrument Kubernetes storageclass"""
+
+	@staticmethod
+	def instrument_storageclass(storageclass):
+		"""Instrument a Kubernetes storageclass"""
+
+		return SensorConstant(name=f"storageclass {storageclass.name} exists", val=Status(state=State.PASSING))
+
+	@staticmethod
+	def exists(name: str) -> Scanner:
+		"""Validate that a Kubernetes configmap exists"""
+		return SensorConstant(
+			name=f"storageclass {name} exists",
+			val=Status(
+				state=State.from_bool(any(e.name == name for e in kr8s.get("StorageClasses"))),
+			),
+		)
+
+	def instrument(self) -> list[Scanner]:
+		storageclasses = kr8s.get("storageclass")
+		return [self.instrument_storageclass(storageclass) for storageclass in storageclasses]
+
+
+class InstrumentorPVCs(Instrumentor, BaseModel):
+	"""Instrument Kubernetes PVCs"""
+
+	@staticmethod
+	def instrument_pvc(pvc: kr8s.objects.PersistentVolumeClaim) -> Scanner:
+		"""Instrument a Kubernetes PVC"""
+		match pvc.status.phase:
+			case "Pending":
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.FAILING))
+			case "Bound":
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.PASSING))
+			case _:
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.FAILING))
+
+		storageclass_sensor = InstrumentorStorageclass.exists(pvc.spec.storageClassName)
+
+		return SystemAll(name=pvc.name, scanners=[phase_sensor, storageclass_sensor])
+
+	def instrument(self) -> list[Scanner]:
+		pvcs = kr8s.get("pvcs")
+		return [self.instrument_pvc(pvc) for pvc in pvcs]
 
 
 class InstrumentorPods(Instrumentor, BaseModel):
@@ -116,13 +174,14 @@ class InstrumentorPods(Instrumentor, BaseModel):
 		"""Instrument a Pod"""
 		match pod.status.phase:
 			case "Pending":
-				...  # TODO
+				pod_sensors = evaluate_conditions({"PodScheduled"}, set())(pod.status.conditions)
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.UNKNOWN))
 			case "Running":
 				pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())(pod.status.conditions)
-				phase_sensor = SensorConstant(name="phase", val=Status(state=State.from_bool(pod.status.phase == "Running")))
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.PASSING))
 			case "Succeeded":
 				pod_sensors = evaluate_conditions({"Initialized", "PodScheduled"}, {"Ready", "ContainersReady"})(pod.status.conditions)
-				phase_sensor = SensorConstant(name="phase", val=Status(state=State.from_bool(pod.status.phase == "Succeeded")))
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.PASSING))
 			case "Failed":
 				...  # TODO
 			case "Unknown":
@@ -131,7 +190,7 @@ class InstrumentorPods(Instrumentor, BaseModel):
 		if "containerStatuses" in pod.status:
 			container_sensor = SystemAll(name="containers", scanners=[InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses])
 		else:
-			container_sensor = SensorConstant.failing(name="containers")  # TODO: more meaningful recovery
+			container_sensor = SensorConstant.failing(name="containers", messages=[])  # TODO: more meaningful recovery
 		scanners = [
 			*pod_sensors,
 			phase_sensor,
@@ -177,6 +236,9 @@ class InstrumentorPods(Instrumentor, BaseModel):
 			return SensorConstant.passing(f"{volume_name} downwardAPI", [])  # TODO: validate
 		elif "serviceAccountToken" in volume:
 			return SensorConstant.passing(f"{volume_name} serviceAccountToken", [])  # TODO: include more information on service account
+		elif "persistentVolumeClaim" in volume:
+			[pvc] = kr8s.get("pvc", volume["persistentVolumeClaim"]["claimName"], namespace=pod.namespace)
+			return InstrumentorPVCs.instrument_pvc(pvc)
 		else:
 			return SensorConstant.passing(f"volume {volume_name} cannot be instrumented", [])
 
@@ -244,6 +306,25 @@ class InstrumentorDaemonset(Instrumentor, BaseModel):
 	def instrument(self) -> list[Scanner]:
 		daemonsets = kr8s.get("daemonsets")
 		return [self.instrument_daemonset(e) for e in daemonsets]
+
+
+class InstrumentorStatefulsets(Instrumentor, BaseModel):
+	"""Instrument kubernetes statefulsets"""
+
+	@staticmethod
+	def instrument_statefulset(statefulset: kr8s.objects.StatefulSet) -> Scanner:
+		"""Instrument a statefulset"""
+		count_sensor = replica_statuses(statefulset.spec.replicas, {"availableReplicas", "currentReplicas", "replicas", "updatedReplicas"}, statefulset.status)
+		collision_sensor = SensorConstant(name="collisionCount", val=Status(state=State.from_bool(statefulset.status.collisionCount == 0)))
+		pod_sensor = SystemAll(
+			name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in kr8s.get("pods", label_selector=statefulset.spec.selector.matchLabels)]
+		)  # TODO: need to filter ownerReferences too
+
+		return SystemAll(name=statefulset.name, scanners=[count_sensor, collision_sensor, pod_sensor])
+
+	def instrument(self) -> list[Scanner]:
+		statefulsets = kr8s.get("statefulsets")
+		return [self.instrument_statefulset(statefulset) for statefulset in statefulsets]
 
 
 class InstrumentorJobs(Instrumentor, BaseModel):
