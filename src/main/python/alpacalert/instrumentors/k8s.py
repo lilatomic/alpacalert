@@ -28,11 +28,12 @@ def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -
 			else:
 				continue
 
-			if "message" in condition:
+			maybe_message = condition.get("message") or condition.get("reason")
+			if maybe_message:
 				loglevel = Severity.INFO if state is State.PASSING else Severity.WARN
 				logs = [
 					Log(
-						message=condition["message"],
+						message=maybe_message,
 						severity=loglevel,
 					)
 				]
@@ -113,14 +114,27 @@ class InstrumentorPods(Instrumentor, BaseModel):
 	@staticmethod
 	def instrument_pod(pod: kr8s.objects.Pod) -> Scanner:
 		"""Instrument a Pod"""
-		pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())
+		match pod.status.phase:
+			case "Pending":
+				...  # TODO
+			case "Running":
+				pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())(pod.status.conditions)
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.from_bool(pod.status.phase == "Running")))
+			case "Succeeded":
+				pod_sensors = evaluate_conditions({"Initialized", "PodScheduled"}, {"Ready", "ContainersReady"})(pod.status.conditions)
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.from_bool(pod.status.phase == "Succeeded")))
+			case "Failed":
+				...  # TODO
+			case "Unknown":
+				...  # TODO
+
 		if "containerStatuses" in pod.status:
 			container_sensor = SystemAll(name="containers", scanners=[InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses])
 		else:
 			container_sensor = SensorConstant.failing(name="containers")  # TODO: more meaningful recovery
 		scanners = [
-			*pod_sensors(pod.status.conditions),
-			SensorConstant(name="phase is running", val=Status(state=State.PASSING if pod.status.phase == "Running" else State.FAILING)),
+			*pod_sensors,
+			phase_sensor,
 			container_sensor,
 			SystemAll(name="volumes", scanners=[InstrumentorPods.instrument_volume(pod, v["name"], v) for v in pod.spec.volumes]),
 		]
@@ -131,7 +145,21 @@ class InstrumentorPods(Instrumentor, BaseModel):
 	def instrument_container(container_status) -> Scanner:
 		"""Instrument a container"""
 		# TODO: add state as message
-		return SensorConstant(name=f"Pod is running: {container_status.name}", val=Status(state=State.from_bool(container_status.ready and container_status.started)))
+		if "running" in container_status.state:
+			state = State.from_bool(container_status.ready and container_status.started)
+			message = "running"
+		elif "terminated" in container_status.state:
+			terminated_successfully = container_status.get("state", {}).get("terminated", {}).get("reason") == "Completed"
+			state = State.from_bool(not container_status.ready and not container_status.started and terminated_successfully)
+			message = "terminated"
+		elif "waiting" in container_status.state:
+			state = State.FAILING
+			message = "waiting"
+		else:
+			state = State.UNKNOWN
+			message = "unknown state"
+
+		return SensorConstant(name=f"Container status: {container_status.name}", val=Status(state=state, messages=[Log(message=message, severity=Severity.INFO)]))
 
 	@staticmethod
 	def instrument_volume(pod: kr8s.objects.Pod, volume_name: str, volume) -> Scanner:
@@ -216,6 +244,26 @@ class InstrumentorDaemonset(Instrumentor, BaseModel):
 	def instrument(self) -> list[Scanner]:
 		daemonsets = kr8s.get("daemonsets")
 		return [self.instrument_daemonset(e) for e in daemonsets]
+
+
+class InstrumentorJobs(Instrumentor, BaseModel):
+	"""Instrument Kubernetes jobs"""
+
+	@staticmethod
+	def instrument_job(job: kr8s.objects.Job) -> Scanner:
+		status_sensors = evaluate_conditions({"Complete"}, set())(job.status.conditions)
+
+		pods = kr8s.get("pods", label_selector=job.spec.selector.matchLabels)
+		if pods:
+			pod_sensor = SystemAll(name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in pods])
+		else:
+			pod_sensor = SensorConstant.passing(name="pods", messages=[Log(message="No pods found", severity=Severity.INFO)])
+
+		return SystemAll(name=job.name, scanners=[*status_sensors, pod_sensor])
+
+	def instrument(self) -> list[Scanner]:
+		jobs = kr8s.get("jobs")
+		return [self.instrument_job(job) for job in jobs]
 
 
 class InstrumentorServices(Instrumentor, BaseModel):
