@@ -121,11 +121,11 @@ class InstrumentorPods(Instrumentor, BaseModel):
 		scanners = [
 			*pod_sensors(pod.status.conditions),
 			SensorConstant(name="phase is running", val=Status(state=State.PASSING if pod.status.phase == "Running" else State.FAILING)),
-			SystemAll(name="containers", scanners=container_sensors),
+			container_sensor,
 			SystemAll(name="volumes", scanners=[InstrumentorPods.instrument_volume(pod, v["name"], v) for v in pod.spec.volumes]),
 		]
 
-		return SystemAll(name=pod.name, scanners=scanners)
+		return SystemAll(name=f"pod {pod.name}", scanners=scanners)
 
 	@staticmethod
 	def instrument_container(container_status) -> Scanner:
@@ -203,15 +203,15 @@ class InstrumentorDaemonset(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_daemonset(daemonset: kr8s.objects.DaemonSet) -> Scanner:
-		count_sensor = replica_statuses(daemonset.status.desiredNumberScheduled, {"currentNumberScheduled", "numberAvailable", "numberReady", "updatedNumberScheduled"}, daemonset.status)
+		count_sensor = replica_statuses(
+			daemonset.status.desiredNumberScheduled, {"currentNumberScheduled", "numberAvailable", "numberReady", "updatedNumberScheduled"}, daemonset.status
+		)
 		pod_sensor = SystemAll(
 			name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in kr8s.get("pods", label_selector=daemonset.spec.selector.matchLabels)]
 		)  # TODO: need to filter ownerReferences too
 		misscheduled_sensor = SensorConstant(name="numberMisscheduled", val=Status(state=State.from_bool(daemonset.status.numberMisscheduled == 0)))
 
-		return SystemAll(
-			name=f"daemonset {daemonset.name}", scanners=[count_sensor, misscheduled_sensor, pod_sensor]
-		)
+		return SystemAll(name=f"daemonset {daemonset.name}", scanners=[count_sensor, misscheduled_sensor, pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
 		daemonsets = kr8s.get("daemonsets")
@@ -236,6 +236,40 @@ class InstrumentorServices(Instrumentor, BaseModel):
 	def instrument(self) -> list[Scanner]:
 		services = kr8s.get("services")
 		return [self.instrument_service(service) for service in services]
+
+
+class InstrumentorIngresses(Instrumentor, BaseModel):
+	"""Instrument Kubernetes ingresses"""
+
+	@staticmethod
+	def instrument_path(path):
+		"""Instrument a path of an ingress rule"""
+		backend = path.backend
+		if "service" in backend:
+			[service] = kr8s.get("services", backend.service.name)
+			return InstrumentorServices.instrument_service(service)
+		elif "resource" in backend:
+			return SensorConstant.passing("resource", [])  # TODO: resolve object references
+		else:
+			return SensorConstant.passing(f"path {path.path} cannot be instrumented", [])
+
+	@staticmethod
+	def instrument_ingress(ingress: kr8s.objects.Ingress) -> Scanner:
+		"""Instrument a Kubernetes ingress"""
+		path_sensors = []
+		for rule_number, rule in enumerate(ingress.spec.rules):
+			for path_number, path in enumerate(rule.http.paths):
+				path_sensors.append(
+					SystemAll(
+						name=f"path {rule_number}:{path_number} {path.path}",
+						scanners=[InstrumentorIngresses.instrument_path(path)],
+					)
+				)
+		return SystemAll(name=ingress.name, scanners=path_sensors)
+
+	def instrument(self) -> list[Scanner]:
+		ingresses = kr8s.get("ingresses")
+		return [self.instrument_ingress(ingress) for ingress in ingresses]
 
 
 class InstrumentorK8s(Instrumentor, BaseModel):
