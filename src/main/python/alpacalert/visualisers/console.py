@@ -21,6 +21,4 @@ class VisualiserConsole(Visualiser):
 		logs = [self._visualise_log(log, indent) for log in status.messages]
 		children = [self._visualise_scanner(e, indent + 1) for e in scanner.children()]
 
-		return [
-			this, *logs, *itertools.chain.from_iterable(children)
-		]
+		return [this, *logs, *itertools.chain.from_iterable(children)]

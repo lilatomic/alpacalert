@@ -6,13 +6,6 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
-[tool.isort]
-profile="black"
-line_length=180
-known_first_party=[
-    "alpacalert"
-]
-
 [tool.ruff]
 line-length=180
 target-version = "py310"

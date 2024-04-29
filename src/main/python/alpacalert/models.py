@@ -1,4 +1,5 @@
 """Alpacalert models."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 
 class Severity(Enum):
 	"""Severity of a Message, per OpenTelemetry log SeverityText and SeverityNumber."""
+
 	TRACE = 1
 	DEBUG = 5
 	INFO = 9
@@ -19,12 +21,14 @@ class Severity(Enum):
 
 class Log(BaseModel):
 	"""A message to be passed as part of a Status"""
+
 	message: str
 	severity: Severity
 
 
 class State(Enum):
 	"""The state of a Scanner"""
+
 	PASSING = "passing"
 	FAILING = "failing"
 	UNKNOWN = "unknown"
@@ -72,6 +76,7 @@ class State(Enum):
 
 class Status(BaseModel):
 	"""Status of a Scanner"""
+
 	state: State
 	messages: list[Log] = []
 

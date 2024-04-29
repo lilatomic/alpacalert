@@ -1,4 +1,5 @@
 """Generic Scanner components"""
+
 import operator
 from functools import reduce
 
@@ -53,6 +54,7 @@ class SensorConstant(Sensor, BaseModel):
 
 	Useful to construct Sensors which don't determine their own status.
 	"""
+
 	val: Status
 
 	def status(self) -> Status:
