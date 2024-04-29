@@ -107,7 +107,8 @@ class InstrumentorPods(Instrumentor, BaseModel):
 		scanners = [
 			*pod_sensors(pod.status.conditions),
 			SensorConstant(name="phase is running", val=Status(state=State.PASSING if pod.status.phase == "Running" else State.FAILING)),
-			*container_sensors,
+			SystemAll(name="containers", scanners=container_sensors),
+			SystemAll(name="volumes", scanners=[InstrumentorPods.instrument_volume(pod, v["name"], v) for v in pod.spec.volumes]),
 		]
 
 		return SystemAll(name=pod.name, scanners=scanners)
@@ -121,6 +122,25 @@ class InstrumentorPods(Instrumentor, BaseModel):
 
 		# TODO: add state as message
 		return SensorConstant(name=f"Pod is running: {container_status.name}", val=Status(state=state))
+
+	@staticmethod
+	def instrument_volume(pod: kr8s.objects.Pod, volume_name: str, volume) -> Scanner:
+		"""Instrument volumes on a pod"""
+		if "configMap" in volume:
+			[configmap] = kr8s.get("configmaps", volume["configMap"]["name"], namespace=pod.namespace)
+			return SystemAll(name=f"volume {volume_name}", scanners=[InstrumentorConfigmaps.instrument_configmap(configmap)])
+		elif "hostPath" in volume:
+			return SensorConstant.passing(f"hostMount {volume_name}", [])
+		elif "projected" in volume:
+			return SystemAll(
+				name=f"projected volume {volume_name}", scanners=[InstrumentorPods.instrument_volume(pod, str(i), v) for i, v in enumerate(volume["projected"]["sources"])]
+			)
+		elif "downwardAPI" in volume:
+			return SensorConstant.passing(f"{volume_name} downwardAPI", [])  # TODO: validate
+		elif "serviceAccountToken" in volume:
+			return SensorConstant.passing(f"{volume_name} serviceAccountToken", [])  # TODO: include more information on service account
+		else:
+			return SensorConstant.passing(f"volume {volume_name} cannot be instrumented", [])
 
 	def instrument(self) -> list[Scanner]:
 		pods = kr8s.get("pods")
