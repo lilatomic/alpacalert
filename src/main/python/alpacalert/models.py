@@ -73,6 +73,17 @@ class State(Enum):
 					case State.UNKNOWN:
 						return State.UNKNOWN
 
+	@classmethod
+	def from_bool(cls, up: bool | None) -> State:
+		"""Convert a tri-state boolean into a State"""
+		match up:
+			case True:
+				return State.PASSING
+			case False:
+				return State.FAILING
+			case None:
+				return State.UNKNOWN
+
 
 class Status(BaseModel):
 	"""Status of a Scanner"""

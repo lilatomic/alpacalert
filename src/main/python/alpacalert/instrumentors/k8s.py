@@ -1,17 +1,22 @@
+"""Instrument all Kubernetes objects"""
+
 from typing import Callable
 
 import kr8s
 from pydantic import BaseModel
 
 from alpacalert.generic import SensorConstant, SystemAll
-from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status
+from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status, System
 
 
 def condition_is(condition, passing_if: bool) -> State:
-	return State.PASSING if condition["status"].lower() == str(passing_if).lower() else State.FAILING
+	"""Evaluate the truthiness of a Kubernetes condition."""
+	return State.from_bool(condition["status"].lower() == str(passing_if).lower())
 
 
 def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -> Callable[[list[dict]], list[Sensor]]:
+	"""Evaluate "conditions" of a Kubernetes object"""
+
 	def evaluate_condition(conditions) -> list[Sensor]:
 		sensors = []
 		for condition in conditions:
@@ -47,6 +52,7 @@ class InstrumentorNode(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_node(node: kr8s.objects.Node) -> Scanner:
+		"""Instrument a Kubernetes node"""
 		return SystemAll(name=node.name, scanners=evaluate_conditions({"Ready"}, {"MemoryPressure", "DiskPressure", "PIDPressure"})(node.status.conditions))
 
 	def instrument(self) -> list[Scanner]:
@@ -60,16 +66,18 @@ class InstrumentorConfigmaps(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_configmap(configmap: kr8s.objects.ConfigMap) -> Scanner:
+		"""Instrument a Kubernetes configmap"""
 		return SensorConstant(name=f"configmap {configmap.name} exists", val=Status(state=State.PASSING))
 
 	@staticmethod
 	def exists(name: str) -> Scanner:
-		if any(e.name == "name" for e in kr8s.get("configmaps")):
-			state = State.PASSING
-		else:
-			state = State.FAILING
-
-		return SensorConstant(name=f"configmap {name} exists", val=Status(state=state))
+		"""Validate that a Kubernetes configmap exists"""
+		return SensorConstant(
+			name=f"configmap {name} exists",
+			val=Status(
+				state=State.from_bool(any(e.name == "name" for e in kr8s.get("configmaps"))),
+			),
+		)
 
 	def instrument(self) -> list[Scanner]:
 		return [self.instrument_configmap(configmap) for configmap in kr8s.get("configmaps")]
@@ -80,16 +88,18 @@ class InstrumentorSecrets(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_secret(secret: kr8s.objects.ConfigMap) -> Scanner:
+		"""Instrument a Kubernetes secret"""
 		return SensorConstant(name=f"secret {secret.name} exists", val=Status(state=State.PASSING))
 
 	@staticmethod
 	def exists(name: str) -> Scanner:
-		if any(e.name == "name" for e in kr8s.get("secrets")):
-			state = State.PASSING
-		else:
-			state = State.FAILING
-
-		return SensorConstant(name=f"secret {name} exists", val=Status(state=state))
+		"""Validate that a secret exists"""
+		return SensorConstant(
+			name=f"secret {name} exists",
+			val=Status(
+				state=State.from_bool(any(e.name == "name" for e in kr8s.get("secrets"))),
+			),
+		)
 
 	def instrument(self) -> list[Scanner]:
 		return [self.instrument_secret(secret) for secret in kr8s.get("secrets")]
@@ -102,7 +112,8 @@ class InstrumentorPods(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_pod(pod: kr8s.objects.Pod) -> Scanner:
-		pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, {})
+		"""Instrument a Pod"""
+		pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())
 		container_sensors = [InstrumentorPods.instrument_container(e) for e in pod.status.containerStatuses]
 		scanners = [
 			*pod_sensors(pod.status.conditions),
@@ -115,13 +126,9 @@ class InstrumentorPods(Instrumentor, BaseModel):
 
 	@staticmethod
 	def instrument_container(container_status) -> Scanner:
-		if container_status.ready and container_status.started:
-			state = State.PASSING
-		else:
-			state = State.FAILING
-
+		"""Instrument a container"""
 		# TODO: add state as message
-		return SensorConstant(name=f"Pod is running: {container_status.name}", val=Status(state=state))
+		return SensorConstant(name=f"Pod is running: {container_status.name}", val=Status(state=State.from_bool(container_status.ready and container_status.started)))
 
 	@staticmethod
 	def instrument_volume(pod: kr8s.objects.Pod, volume_name: str, volume) -> Scanner:
@@ -145,6 +152,47 @@ class InstrumentorPods(Instrumentor, BaseModel):
 	def instrument(self) -> list[Scanner]:
 		pods = kr8s.get("pods")
 		return [self.instrument_pod(pod) for pod in pods]
+
+
+def replica_statuses(target: int, kinds: set[str], status) -> System:
+	"""Compute statuses for the number of replicas"""
+	return SystemAll(name="replicas", scanners=[SensorConstant(name=kind, val=Status(state=State.from_bool(status[kind] == target))) for kind in kinds])
+
+
+class InstrumentorReplicaSets(Instrumentor, BaseModel):
+	"""Instrument kubernetes ReplicaSets"""
+
+	@staticmethod
+	def instrument_replicaset(replicaset: kr8s.objects.ReplicaSet) -> Scanner:
+		"""Instrument a ReplicaSet."""
+		count_sensors = replica_statuses(replicaset.spec.replicas, {"replicas", "availableReplicas", "readyReplicas"}, replicaset.status)
+		pod_sensors = SystemAll(
+			name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in kr8s.get("pods", label_selector=replicaset.spec.selector.matchLabels)]
+		)  # TODO: need to filter ownerReferences too
+
+		return SystemAll(name=replicaset.name, scanners=[count_sensors, pod_sensors])
+
+	def instrument(self) -> list[Scanner]:
+		replicasets = kr8s.get("replicasets")
+		return [self.instrument_replicaset(replicaset) for replicaset in replicasets]
+
+
+class InstrumentorDeployments(Instrumentor, BaseModel):
+	"""Instrument kubernetes deployments"""
+
+	@staticmethod
+	def instrument_deployment(deployment: kr8s.objects.Deployment) -> Scanner:
+		"""Instrument a deployment"""
+		status_sensors = evaluate_conditions({"Progressing", "Available"}, set())(deployment.status.conditions)
+		count_sensor = replica_statuses(deployment.spec.replicas, {"replicas", "availableReplicas", "readyReplicas", "updatedReplicas"}, deployment.status)
+		replicaset_sensor = SystemAll(
+			name="replicasets", scanners=[InstrumentorReplicaSets.instrument_replicaset(e) for e in kr8s.get("replicasets", label_selector=deployment.spec.selector.matchLabels)]
+		)
+		return SystemAll(name=deployment.name, scanners=[*status_sensors, count_sensor, replicaset_sensor])
+
+	def instrument(self) -> list[Scanner]:
+		deployments = kr8s.get("deployments")
+		return [self.instrument_deployment(deployment) for deployment in deployments]
 
 
 class InstrumentorK8s(Instrumentor, BaseModel):
