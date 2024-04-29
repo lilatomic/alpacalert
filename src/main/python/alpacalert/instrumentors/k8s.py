@@ -195,6 +195,26 @@ class InstrumentorDeployments(Instrumentor, BaseModel):
 		return [self.instrument_deployment(deployment) for deployment in deployments]
 
 
+class InstrumentorDaemonset(Instrumentor, BaseModel):
+	"""Instrument Kubernetes daemonsets"""
+
+	@staticmethod
+	def instrument_daemonset(daemonset: kr8s.objects.DaemonSet) -> Scanner:
+		count_sensor = replica_statuses(daemonset.status.desiredNumberScheduled, {"currentNumberScheduled", "numberAvailable", "numberReady", "updatedNumberScheduled"}, daemonset.status)
+		pod_sensor = SystemAll(
+			name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in kr8s.get("pods", label_selector=daemonset.spec.selector.matchLabels)]
+		)  # TODO: need to filter ownerReferences too
+		misscheduled_sensor = SensorConstant(name="numberMisscheduled", val=Status(state=State.from_bool(daemonset.status.numberMisscheduled == 0)))
+
+		return SystemAll(
+			name=f"daemonset {daemonset.name}", scanners=[count_sensor, misscheduled_sensor, pod_sensor]
+		)
+
+	def instrument(self) -> list[Scanner]:
+		daemonsets = kr8s.get("daemonsets")
+		return [self.instrument_daemonset(e) for e in daemonsets]
+
+
 class InstrumentorServices(Instrumentor, BaseModel):
 	"""Instrument Kubernetes services"""
 
