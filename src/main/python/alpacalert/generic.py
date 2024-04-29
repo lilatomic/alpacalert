@@ -64,13 +64,13 @@ class SensorConstant(Sensor, BaseModel):
 		return []
 
 	@classmethod
-	def failing(cls, messages: list[Log]):
+	def failing(cls, name: str, messages: list[Log]):
 		"""Helper for failing sensors"""
 
-		return cls(_status=Status(state=State.FAILING, messages=messages))
+		return cls(name=name, val=Status(state=State.FAILING, messages=messages))
 
 	@classmethod
-	def passing(cls, messages: list[Log]):
+	def passing(cls, name: str, messages: list[Log]):
 		"""Helper for passing sensors"""
 
-		return cls(_status=Status(state=State.PASSING, messages=messages))
+		return cls(name=name, val=Status(state=State.PASSING, messages=messages))
