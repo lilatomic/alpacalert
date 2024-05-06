@@ -2,13 +2,13 @@
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 import kr8s
 from pydantic import BaseModel
 
 from alpacalert.generic import SensorConstant, SystemAll, SystemAny
-from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status, System
+from alpacalert.models import Instrumentor, Log, Scanner, Sensor, Severity, State, Status, System, InstrumentorError
 
 
 class StorageClass(kr8s.objects.APIObject):
@@ -34,8 +34,18 @@ class K8s:
 	def list(self, kind: str, namespace: str = kr8s.ALL) -> list:
 		return self.kr8s.get(kind, namespace=namespace)
 
+	def get(self, kind: str, namespace: str, name: str) -> Optional[kr8s.objects.APIObject]:
+		result = self.kr8s.get(kind, name, namespace=namespace)
+		if len(result) == 1:
+			return result[0]
+		elif len(result) == 0:
+			return None
+		else:
+			raise InstrumentorError(f"Multiple resources found for {kind=} {namespace=} {name=}")
 
-class InstrumentorKubernetes(Instrumentor, BaseModel, ABC):
+
+@dataclass
+class InstrumentorKubernetes(Instrumentor, ABC):
 	"""Base for all Kubernetes instrumentors"""
 
 	k8s: K8s
@@ -101,13 +111,12 @@ class InstrumentorConfigmaps(InstrumentorKubernetes):
 		"""Instrument a Kubernetes configmap"""
 		return SensorConstant(name=f"configmap {configmap.name} exists", val=Status(state=State.PASSING))
 
-	@staticmethod
-	def exists(name: str) -> Scanner:
+	def exists(self, namespace: str, name: str) -> Scanner:
 		"""Validate that a Kubernetes configmap exists"""
 		return SensorConstant(
 			name=f"configmap {name} exists",
 			val=Status(
-				state=State.from_bool(any(e.name == "name" for e in kr8s.get("configmaps"))),
+				state=State.from_bool(self.k8s.exists("configmap", namespace, name)),
 			),
 		)
 
@@ -123,13 +132,12 @@ class InstrumentorSecrets(InstrumentorKubernetes):
 		"""Instrument a Kubernetes secret"""
 		return SensorConstant(name=f"secret {secret.name} exists", val=Status(state=State.PASSING))
 
-	@staticmethod
-	def exists(name: str) -> Scanner:
+	def exists(self, namespace: str, name: str) -> Scanner:
 		"""Validate that a secret exists"""
 		return SensorConstant(
 			name=f"secret {name} exists",
 			val=Status(
-				state=State.from_bool(any(e.name == name for e in kr8s.get("secrets"))),
+				state=State.from_bool(self.k8s.exists("secret", namespace, name)),
 			),
 		)
 
@@ -146,13 +154,12 @@ class InstrumentorStorageclass(InstrumentorKubernetes):
 
 		return SensorConstant(name=f"storageclass {storageclass.name} exists", val=Status(state=State.PASSING))
 
-	@staticmethod
-	def exists(name: str) -> Scanner:
+	def exists(self, namespace: str, name: str) -> Scanner:
 		"""Validate that a Kubernetes configmap exists"""
 		return SensorConstant(
 			name=f"storageclass {name} exists",
 			val=Status(
-				state=State.from_bool(any(e.name == name for e in kr8s.get("StorageClasses"))),
+				state=State.from_bool(self.k8s.exists("StorageClasses", namespace, name)),
 			),
 		)
 
@@ -237,24 +244,21 @@ class InstrumentorPods(InstrumentorKubernetes):
 
 		return SensorConstant(name=f"Container status: {container_status.name}", val=Status(state=state, messages=[Log(message=message, severity=Severity.INFO)]))
 
-	@staticmethod
-	def instrument_volume(pod: kr8s.objects.Pod, volume_name: str, volume) -> Scanner:
+	def instrument_volume(self, pod: kr8s.objects.Pod, volume_name: str, volume) -> Scanner:
 		"""Instrument volumes on a pod"""
 		if "configMap" in volume:
-			[configmap] = kr8s.get("configmaps", volume["configMap"]["name"], namespace=pod.namespace)
+			configmap = self.k8s.get("configmaps", pod.namespace, volume["configMap"]["name"])
 			return SystemAll(name=f"volume {volume_name}", scanners=[InstrumentorConfigmaps.instrument_configmap(configmap)])
 		elif "hostPath" in volume:
 			return SensorConstant.passing(f"hostMount {volume_name}", [])
 		elif "projected" in volume:
-			return SystemAll(
-				name=f"projected volume {volume_name}", scanners=[InstrumentorPods.instrument_volume(pod, str(i), v) for i, v in enumerate(volume["projected"]["sources"])]
-			)
+			return SystemAll(name=f"projected volume {volume_name}", scanners=[self.instrument_volume(pod, str(i), v) for i, v in enumerate(volume["projected"]["sources"])])
 		elif "downwardAPI" in volume:
 			return SensorConstant.passing(f"{volume_name} downwardAPI", [])  # TODO: validate
 		elif "serviceAccountToken" in volume:
 			return SensorConstant.passing(f"{volume_name} serviceAccountToken", [])  # TODO: include more information on service account
 		elif "persistentVolumeClaim" in volume:
-			[pvc] = kr8s.get("pvc", volume["persistentVolumeClaim"]["claimName"], namespace=pod.namespace)
+			pvc = self.k8s.get("pvc", pod.namespace, volume["persistentVolumeClaim"]["claimName"])
 			return InstrumentorPVCs.instrument_pvc(pvc)
 		else:
 			return SensorConstant.passing(f"volume {volume_name} cannot be instrumented", [])
@@ -335,7 +339,7 @@ class InstrumentorStatefulsets(InstrumentorKubernetes):
 			name="pods", scanners=[InstrumentorPods.instrument_pod(e) for e in kr8s.get("pods", label_selector=statefulset.spec.selector.matchLabels)]
 		)  # TODO: need to filter ownerReferences too
 
-		return SystemAll(name=statefulset.name, scanners=[count_sensor, collision_sensor, pod_sensor])
+		return SystemAll(name=f"statefulset {statefulset.name}", scanners=[count_sensor, collision_sensor, pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
 		return [self.instrument_statefulset(statefulset) for statefulset in self.k8s.list("statefulsets")]
@@ -382,20 +386,18 @@ class InstrumentorServices(InstrumentorKubernetes):
 class InstrumentorIngresses(InstrumentorKubernetes):
 	"""Instrument Kubernetes ingresses"""
 
-	@staticmethod
-	def instrument_path(path):
+	def instrument_path(self, namespace: str, path):
 		"""Instrument a path of an ingress rule"""
 		backend = path.backend
 		if "service" in backend:
-			[service] = kr8s.get("services", backend.service.name)
+			service = self.k8s.get("services", namespace, backend.service.name)  # the service must exist in the same NS as the ingress
 			return InstrumentorServices.instrument_service(service)
 		elif "resource" in backend:
 			return SensorConstant.passing("resource", [])  # TODO: resolve object references
 		else:
 			return SensorConstant.passing(f"path {path.path} cannot be instrumented", [])
 
-	@staticmethod
-	def instrument_ingress(ingress: kr8s.objects.Ingress) -> Scanner:
+	def instrument_ingress(self, ingress: kr8s.objects.Ingress) -> Scanner:
 		"""Instrument a Kubernetes ingress"""
 		path_sensors = []
 		for rule_number, rule in enumerate(ingress.spec.rules):
@@ -403,14 +405,13 @@ class InstrumentorIngresses(InstrumentorKubernetes):
 				path_sensors.append(
 					SystemAll(
 						name=f"path {rule_number}:{path_number} {path.path}",
-						scanners=[InstrumentorIngresses.instrument_path(path)],
+						scanners=[self.instrument_path(ingress.namespace, path)],
 					)
 				)
 		return SystemAll(name=ingress.name, scanners=path_sensors)
 
 	def instrument(self) -> list[Scanner]:
-		ingresses = kr8s.get("ingresses")
-		return [self.instrument_ingress(ingress) for ingress in ingresses]
+		return [self.instrument_ingress(ingress) for ingress in (self.k8s.list("ingresses"))]
 
 
 # class InstrumentorK8s(Instrumentor, BaseModel):

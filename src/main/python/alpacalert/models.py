@@ -150,3 +150,7 @@ class Instrumentor(ABC):
 		"""
 		Instrument an external entity by generating Sensors, Systems, or Services.
 		"""
+
+
+class InstrumentorError(Exception):
+	"""An error instrumenting an object"""
