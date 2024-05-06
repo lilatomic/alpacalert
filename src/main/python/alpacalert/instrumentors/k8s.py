@@ -1,5 +1,7 @@
 """Instrument all Kubernetes objects"""
 
+from abc import ABC
+from dataclasses import dataclass
 from typing import Callable
 
 import kr8s
@@ -18,6 +20,25 @@ class StorageClass(kr8s.objects.APIObject):
 	singular = "storageclass"
 	namespaced = False
 	scalable = False
+
+
+@dataclass
+class K8s:
+	kr8s: kr8s
+
+	def exists(self, kind: str, namespace: str, name: str) -> bool:
+		"""Validate that a resource exists"""
+		resources = kr8s.get(kind, name, namespace=namespace)
+		return len(resources) > 0
+
+	def list(self, kind: str, namespace: str = kr8s.ALL) -> list:
+		return self.kr8s.get(kind, namespace=namespace)
+
+
+class InstrumentorKubernetes(Instrumentor, BaseModel, ABC):
+	"""Base for all Kubernetes instrumentors"""
+
+	k8s: K8s
 
 
 def condition_is(condition, passing_if: bool) -> State:
@@ -57,7 +78,7 @@ def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -
 	return evaluate_condition
 
 
-class InstrumentorNode(Instrumentor, BaseModel):
+class InstrumentorNode(InstrumentorKubernetes):
 	"""Instrument K8s nodes"""
 
 	cluster_name: str
@@ -69,11 +90,10 @@ class InstrumentorNode(Instrumentor, BaseModel):
 
 	def instrument(self) -> list[Scanner]:
 		"""Get information about k8s nodes"""
-		nodes = kr8s.get("nodes")
-		return [self.instrument_node(node) for node in nodes]
+		return [self.instrument_node(node) for node in (self.k8s.list("nodes"))]
 
 
-class InstrumentorConfigmaps(Instrumentor, BaseModel):
+class InstrumentorConfigmaps(InstrumentorKubernetes):
 	"""Instrument Kubernetes configmaps. Basically just an existance check"""
 
 	@staticmethod
@@ -92,10 +112,10 @@ class InstrumentorConfigmaps(Instrumentor, BaseModel):
 		)
 
 	def instrument(self) -> list[Scanner]:
-		return [self.instrument_configmap(configmap) for configmap in kr8s.get("configmaps")]
+		return [self.instrument_configmap(configmap) for configmap in self.k8s.list("configmaps")]
 
 
-class InstrumentorSecrets(Instrumentor, BaseModel):
+class InstrumentorSecrets(InstrumentorKubernetes):
 	"""Instrument Kubernetes secrets. Basically just an existance check"""
 
 	@staticmethod
@@ -114,10 +134,10 @@ class InstrumentorSecrets(Instrumentor, BaseModel):
 		)
 
 	def instrument(self) -> list[Scanner]:
-		return [self.instrument_secret(secret) for secret in kr8s.get("secrets")]
+		return [self.instrument_secret(secret) for secret in self.k8s.list("secrets")]
 
 
-class InstrumentorStorageclass(Instrumentor, BaseModel):
+class InstrumentorStorageclass(InstrumentorKubernetes):
 	"""Instrument Kubernetes storageclass"""
 
 	@staticmethod
@@ -137,11 +157,11 @@ class InstrumentorStorageclass(Instrumentor, BaseModel):
 		)
 
 	def instrument(self) -> list[Scanner]:
-		storageclasses = kr8s.get("storageclass")
+		storageclasses = self.k8s.list("storageclass")
 		return [self.instrument_storageclass(storageclass) for storageclass in storageclasses]
 
 
-class InstrumentorPVCs(Instrumentor, BaseModel):
+class InstrumentorPVCs(InstrumentorKubernetes):
 	"""Instrument Kubernetes PVCs"""
 
 	@staticmethod
@@ -160,14 +180,11 @@ class InstrumentorPVCs(Instrumentor, BaseModel):
 		return SystemAll(name=pvc.name, scanners=[phase_sensor, storageclass_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		pvcs = kr8s.get("pvcs")
-		return [self.instrument_pvc(pvc) for pvc in pvcs]
+		return [self.instrument_pvc(pvc) for pvc in (self.k8s.list("pvcs"))]
 
 
-class InstrumentorPods(Instrumentor, BaseModel):
+class InstrumentorPods(InstrumentorKubernetes):
 	"""Instrument Kubernetes Pods in a namespace"""
-
-	namespace: str
 
 	@staticmethod
 	def instrument_pod(pod: kr8s.objects.Pod) -> Scanner:
@@ -243,7 +260,7 @@ class InstrumentorPods(Instrumentor, BaseModel):
 			return SensorConstant.passing(f"volume {volume_name} cannot be instrumented", [])
 
 	def instrument(self) -> list[Scanner]:
-		pods = kr8s.get("pods")
+		pods = self.k8s.list("pods")
 		return [self.instrument_pod(pod) for pod in pods]
 
 
@@ -252,7 +269,7 @@ def replica_statuses(target: int, kinds: set[str], status) -> System:
 	return SystemAll(name="replicas", scanners=[SensorConstant(name=kind, val=Status(state=State.from_bool(status.get(kind) == target))) for kind in kinds])
 
 
-class InstrumentorReplicaSets(Instrumentor, BaseModel):
+class InstrumentorReplicaSets(InstrumentorKubernetes):
 	"""Instrument kubernetes ReplicaSets"""
 
 	@staticmethod
@@ -266,11 +283,11 @@ class InstrumentorReplicaSets(Instrumentor, BaseModel):
 		return SystemAll(name=replicaset.name, scanners=[count_sensors, pod_sensors])
 
 	def instrument(self) -> list[Scanner]:
-		replicasets = kr8s.get("replicasets")
+		replicasets = self.k8s.list("replicasets")
 		return [self.instrument_replicaset(replicaset) for replicaset in replicasets]
 
 
-class InstrumentorDeployments(Instrumentor, BaseModel):
+class InstrumentorDeployments(InstrumentorKubernetes):
 	"""Instrument kubernetes deployments"""
 
 	@staticmethod
@@ -284,11 +301,10 @@ class InstrumentorDeployments(Instrumentor, BaseModel):
 		return SystemAll(name=deployment.name, scanners=[*status_sensors, count_sensor, replicaset_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		deployments = kr8s.get("deployments")
-		return [self.instrument_deployment(deployment) for deployment in deployments]
+		return [self.instrument_deployment(deployment) for deployment in (self.k8s.list("deployments"))]
 
 
-class InstrumentorDaemonset(Instrumentor, BaseModel):
+class InstrumentorDaemonset(InstrumentorKubernetes):
 	"""Instrument Kubernetes daemonsets"""
 
 	@staticmethod
@@ -304,11 +320,10 @@ class InstrumentorDaemonset(Instrumentor, BaseModel):
 		return SystemAll(name=f"daemonset {daemonset.name}", scanners=[count_sensor, misscheduled_sensor, pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		daemonsets = kr8s.get("daemonsets")
-		return [self.instrument_daemonset(e) for e in daemonsets]
+		return [self.instrument_daemonset(e) for e in (self.k8s.list("daemonsets"))]
 
 
-class InstrumentorStatefulsets(Instrumentor, BaseModel):
+class InstrumentorStatefulsets(InstrumentorKubernetes):
 	"""Instrument kubernetes statefulsets"""
 
 	@staticmethod
@@ -323,11 +338,10 @@ class InstrumentorStatefulsets(Instrumentor, BaseModel):
 		return SystemAll(name=statefulset.name, scanners=[count_sensor, collision_sensor, pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		statefulsets = kr8s.get("statefulsets")
-		return [self.instrument_statefulset(statefulset) for statefulset in statefulsets]
+		return [self.instrument_statefulset(statefulset) for statefulset in self.k8s.list("statefulsets")]
 
 
-class InstrumentorJobs(Instrumentor, BaseModel):
+class InstrumentorJobs(InstrumentorKubernetes):
 	"""Instrument Kubernetes jobs"""
 
 	@staticmethod
@@ -343,11 +357,10 @@ class InstrumentorJobs(Instrumentor, BaseModel):
 		return SystemAll(name=job.name, scanners=[*status_sensors, pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		jobs = kr8s.get("jobs")
-		return [self.instrument_job(job) for job in jobs]
+		return [self.instrument_job(job) for job in self.k8s.list("jobs")]
 
 
-class InstrumentorServices(Instrumentor, BaseModel):
+class InstrumentorServices(InstrumentorKubernetes):
 	"""Instrument Kubernetes services"""
 
 	# TODO: Consider using Endpoints resources
@@ -363,11 +376,10 @@ class InstrumentorServices(Instrumentor, BaseModel):
 		return SystemAll(name=service.name, scanners=[pod_sensor])
 
 	def instrument(self) -> list[Scanner]:
-		services = kr8s.get("services")
-		return [self.instrument_service(service) for service in services]
+		return [self.instrument_service(service) for service in (self.k8s.list("services"))]
 
 
-class InstrumentorIngresses(Instrumentor, BaseModel):
+class InstrumentorIngresses(InstrumentorKubernetes):
 	"""Instrument Kubernetes ingresses"""
 
 	@staticmethod
@@ -401,8 +413,8 @@ class InstrumentorIngresses(Instrumentor, BaseModel):
 		return [self.instrument_ingress(ingress) for ingress in ingresses]
 
 
-class InstrumentorK8s(Instrumentor, BaseModel):
-	"""Instrument Kubernetes objects"""
-
-	def instrument(self) -> list[Scanner]:
-		pass
+# class InstrumentorK8s(Instrumentor, BaseModel):
+# 	"""Instrument Kubernetes objects"""
+#
+# 	def instrument(self) -> list[Scanner]:
+# 		pass
