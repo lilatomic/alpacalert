@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class Severity(Enum):
@@ -92,7 +93,7 @@ class Status(BaseModel):
 	messages: list[Log] = []
 
 
-class Scanner(BaseModel, ABC):
+class Scanner(ABC):
 	"""Common interface for Sensors, Systems, and Services"""
 
 	name: str

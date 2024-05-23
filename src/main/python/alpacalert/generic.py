@@ -1,16 +1,16 @@
 """Generic Scanner components"""
 
 import operator
+from abc import abstractproperty, abstractmethod
+from dataclasses import dataclass
 from functools import reduce
-
-from pydantic import BaseModel
 
 from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
 
-class SystemAny(System, BaseModel):
+class SystemAny(System):
 	"""System that is PASSING if any of its Sensors are PASSING"""
-
+	name: str
 	scanners: list[Scanner]
 
 	def status(self) -> Status:
@@ -22,9 +22,17 @@ class SystemAny(System, BaseModel):
 		return self.scanners
 
 
-class SystemAll(System, BaseModel):
+def status_all(self):
+	statuses = [sensor.status() for sensor in self.children()]
+	state = reduce(operator.and_, (status.state for status in statuses))
+	return Status(state=state)
+
+
+@dataclass
+class SystemAll(System):
 	"""System that is PASSING if all of its Sensors are PASSING"""
 
+	name: str
 	scanners: list[Scanner]
 
 	def status(self) -> Status:
@@ -36,9 +44,11 @@ class SystemAll(System, BaseModel):
 		return self.scanners
 
 
-class ServiceBasic(Service, BaseModel):
+@dataclass
+class ServiceBasic(Service):
 	"""A basic Service that relies on a single System"""
 
+	name: str
 	system: System
 
 	def status(self) -> Status:
@@ -48,13 +58,15 @@ class ServiceBasic(Service, BaseModel):
 		return [self.system]
 
 
-class SensorConstant(Sensor, BaseModel):
+@dataclass
+class SensorConstant(Sensor):
 	"""
 	A Sensor that provides a constant value.
 
 	Useful to construct Sensors which don't determine their own status.
 	"""
 
+	name: str
 	val: Status
 
 	def status(self) -> Status:
