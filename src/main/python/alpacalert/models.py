@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -140,13 +141,16 @@ class Visualiser(ABC):
 		"""Visualise a Service"""
 
 
-class Instrumentor(ABC):
+T = TypeVar("T")
+
+
+class Instrumentor(ABC, Generic[T]):
 	"""
 	Instrument an external entity by generating Sensors, Systems, or Services.
 	"""
 
 	@abstractmethod
-	def instrument(self) -> list[Scanner]:
+	def instrument(self, obj: T) -> list[Scanner]:
 		"""
 		Instrument an external entity by generating Sensors, Systems, or Services.
 		"""
