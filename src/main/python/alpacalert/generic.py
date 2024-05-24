@@ -1,15 +1,22 @@
 """Generic Scanner components"""
 
 import operator
-from abc import abstractproperty, abstractmethod
 from dataclasses import dataclass
 from functools import reduce
 
 from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
 
+def status_any(self):
+	statuses = [sensor.status() for sensor in self.children()]
+	state = reduce(operator.or_, (status.state for status in statuses))
+	return Status(state=state)
+
+
+@dataclass
 class SystemAny(System):
 	"""System that is PASSING if any of its Sensors are PASSING"""
+
 	name: str
 	scanners: list[Scanner]
 
