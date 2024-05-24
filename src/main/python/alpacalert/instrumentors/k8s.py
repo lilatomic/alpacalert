@@ -306,9 +306,11 @@ class SensorPods(SensorKubernetes, Sensor):
 				pod_sensors = evaluate_conditions({"Initialized", "PodScheduled"}, {"Ready", "ContainersReady"})(self.pod.status.conditions)
 				phase_sensor = SensorConstant(name="phase", val=Status(state=State.PASSING))
 			case "Failed":
-				...  # TODO
+				pod_sensors = evaluate_conditions({"Initialized", "Ready", "ContainersReady", "PodScheduled"}, set())(self.pod.status.conditions)
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.FAILING))
 			case "Unknown":
-				...  # TODO
+				pod_sensors = []
+				phase_sensor = SensorConstant(name="phase", val=Status(state=State.UNKNOWN))
 
 		if "containerStatuses" in self.pod.status:
 			container_sensor = SystemAll(name="containers", scanners=[self.Container(self.k8s, e) for e in self.pod.status.containerStatuses])

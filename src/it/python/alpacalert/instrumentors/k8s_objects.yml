@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aa-cronjob
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hello
+  namespace: aa-cronjob
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox:1.28
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aa-pods
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-pending
+  namespace: aa-pods
+  labels:
+    app: my-app
+spec:
+  containers:
+  - name: my-container
+    image: nginx:1.0.999 # hopefully an invalid tag
+    ports:
+    - containerPort: 80
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-failed
+  namespace: aa-pods
+spec:
+  restartPolicy: Never
+  containers:
+  - name: failed-container
+    image: busybox:latest
+    command: ["sh", "-c", "exit 1"]
