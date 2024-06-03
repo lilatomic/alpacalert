@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Iterable
 
 from pydantic import BaseModel
 
@@ -140,16 +143,53 @@ class Visualiser(ABC):
 		"""Visualise a Service"""
 
 
-class Instrumentor(ABC):
+class Instrumentor:
+	@dataclass(frozen=True)
+	class Kind:
+		namespace: str
+		name: str
+
+	@dataclass(frozen=True)
+	class Req:
+		kind: Instrumentor.Kind
+		obj: Any
+
+	Registrations = Iterable[tuple[Kind, type["Instrumentor"]]]
+
+	@abstractmethod
+	def registrations(self) -> Instrumentor.Registrations: ...
+
+	@abstractmethod
+	def instrument(self, req: Instrumentor.Req) -> list[Scanner]: ...
+
+
+class InstrumentorRegistry:
 	"""
 	Instrument an external entity by generating Sensors, Systems, or Services.
 	"""
 
-	@abstractmethod
-	def instrument(self) -> list[Scanner]:
+	Registry = dict[Instrumentor.Kind, Instrumentor]
+
+	def __init__(self, instrumentors: Registry | None = None):
+		self.instrumentors: InstrumentorRegistry.Registry
+		if instrumentors:
+			self.instrumentors = instrumentors
+		else:
+			self.instrumentors = {}
+
+	def instrument(self, req: Instrumentor.Req) -> list[Scanner]:
 		"""
 		Instrument an external entity by generating Sensors, Systems, or Services.
 		"""
+		instrumentor = self.instrumentors.get(req.kind)
+		if instrumentor:
+			return instrumentor.instrument(req)
+		else:
+			logging.warning(f"no provider {req.kind=}")
+			return []
+
+	def register(self, kind: Instrumentor.Kind, instrumentor: Instrumentor):
+		self.instrumentors[kind] = instrumentor
 
 
 class InstrumentorError(Exception):

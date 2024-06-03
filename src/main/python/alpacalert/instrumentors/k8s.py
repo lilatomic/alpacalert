@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable, Optional, Type
 import kr8s
 
 from alpacalert.generic import SensorConstant, SystemAll, SystemAny, status_all
-from alpacalert.models import Instrumentor, InstrumentorError, Log, Scanner, Sensor, Severity, State, Status, System
+from alpacalert.models import Instrumentor, InstrumentorError, InstrumentorRegistry, Log, Scanner, Sensor, Severity, State, Status, System
 
 
 class StorageClass(kr8s.objects.APIObject):
@@ -19,13 +19,6 @@ class StorageClass(kr8s.objects.APIObject):
 	singular = "storageclass"
 	namespaced = False
 	scalable = False
-
-
-class SensorK8s(SensorConstant):
-	"""Sense a K8s object"""
-
-
-Registrations = Iterable[tuple[str, Type[Scanner]]]
 
 
 @dataclass
@@ -63,50 +56,39 @@ class K8s:
 
 
 @dataclass
-class InstrumentorKubernetes(Instrumentor, ABC):
+class SensorKubernetes(Scanner, ABC):
 	"""Base for all Kubernetes instrumentors"""
 
 	k8s: K8s
 
+	Registrations = Iterable[tuple[str, Type["SensorKubernetes"]]]
+
 	@classmethod
 	@abstractmethod
-	def registrations(cls) -> Registrations:
-		"""Mappings of Kubernetes kind uris to instrumentors"""
+	def registrations(cls) -> Registrations: ...
 
 
 @dataclass
-class SensorKubernetes(ABC):
-	"""Base for all Kubernetes instrumentors"""
-
-	k8s: K8s
-
-	@classmethod
-	@abstractmethod
-	def registrations(cls) -> Registrations:
-		"""Mappings of Kubernetes kind uris to instrumentors"""
-
-
-@dataclass(frozen=True)
-class InstrumentK8sReq:
-	"""Request to instrument a Kubernetes object"""
-
-	v: Any
-
-	uri: str
-	kind_uri: str
-
-
 class InstrumentorK8s(Instrumentor):
-	def __init__(self, k8s: K8s, instrumentors: dict[str, InstrumentorKubernetes] | None = None):
+	k8s: K8s
+	_registrations: Instrumentor.Registrations
+	k8s_sensor_cls: type[SensorKubernetes]
+
+	def registrations(self) -> Instrumentor.Registrations:
+		return self._registrations
+
+	def instrument(self, req: Instrumentor.Req) -> list[Scanner]:
+		return [self.k8s_sensor_cls(self.k8s, req.obj)]
+
+
+class InstrumentorK8sRegistry(InstrumentorRegistry):
+	def __init__(self, k8s: K8s, sensors: dict[Instrumentor.Kind, SensorKubernetes] | None = None):
+		super().__init__()
 		self.k8s = k8s
 
-		if instrumentors:
-			self.instrumentors = instrumentors
-
-		else:
-			self.instrumentors = {}
-
-			default_instrumentors = [
+		if not sensors:
+			sensors = [
+				*SensorCluster.registrations(),
 				*SensorNode.registrations(),
 				*SensorConfigmaps.registrations(),
 				*SensorSecrets.registrations(),
@@ -122,26 +104,24 @@ class InstrumentorK8s(Instrumentor):
 				*SensorIngresses.registrations(),
 			]
 
-			for sensor in default_instrumentors:
-				self.register_sensor(sensor[0], sensor[1])
+		for sensor in sensors:
+			registration = Instrumentor.Kind("kubernetes.io", sensor[0])
+			self.register(registration, InstrumentorK8s(k8s, [registration], sensor[1]))
 
-	def instrument(self) -> list[Scanner]:
-		scanners = []
-
-		for kind, sensor in self.instrumentors.items():
-			if "#" in kind:
-				continue
-			objs = self.k8s.get_all(kind)
-			for obj in objs:
-				try:
-					scanners.append(sensor(self.k8s, obj))
-				except Exception as e:
-					raise InstrumentorError(f"Failed to instrument {kind=} {obj.name}") from e
-
-		return scanners
-
-	def register_sensor(self, kind_uri: str, instrumentor: InstrumentorKubernetes):
-		self.instrumentors[kind_uri] = instrumentor
+	# def instrument(self, req: Instrumentor.Req) -> list[Scanner]:
+	# 	scanners = []
+	#
+	# 	for kind, sensor in self.instrumentors.items():
+	# 		if "#" in kind:
+	# 			continue
+	# 		objs = self.k8s.get_all(kind)
+	# 		for obj in objs:
+	# 			try:
+	# 				scanners.append(sensor(self.k8s, obj))
+	# 			except Exception as e:
+	# 				raise InstrumentorError(f"Failed to instrument {kind=} {obj.name}") from e
+	#
+	# 	return scanners
 
 
 def condition_is(condition, passing_if: bool) -> State:
@@ -182,6 +162,56 @@ def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -
 
 
 @dataclass
+class SensorCluster(SensorKubernetes, System):
+	"""Maybe this is fake"""
+
+	cluster: K8sObjRef
+
+	@property
+	def name(self) -> str:
+		return "cluster"
+
+	def children(self) -> list[Scanner]:
+		scanners = []
+		for kind, sensor in self.k8s_instrumentors():
+			if "#" in kind:
+				continue
+			objs = self.k8s.get_all(kind)
+			for obj in objs:
+				try:
+					scanners.append(sensor(self.k8s, obj))
+				except Exception as e:
+					raise InstrumentorError(f"Failed to instrument {kind=} {obj.name}") from e
+
+		return scanners
+
+	status = status_all
+
+	@classmethod
+	def k8s_instrumentors(cls):
+		default_instrumentors = [
+			*SensorNode.registrations(),
+			*SensorConfigmaps.registrations(),
+			*SensorSecrets.registrations(),
+			*SensorStorageclass.registrations(),
+			*SensorPVCs.registrations(),
+			*SensorPods.registrations(),
+			*SensorReplicaSets.registrations(),
+			*SensorDeployments.registrations(),
+			*SensorDaemonset.registrations(),
+			*SensorStatefulsets.registrations(),
+			*SensorJob.registrations(),
+			*SensorServices.registrations(),
+			*SensorIngresses.registrations(),
+		]
+		return default_instrumentors
+
+	@classmethod
+	def registrations(cls) -> SensorKubernetes.Registrations:
+		return [("Clusters", cls)]
+
+
+@dataclass
 class SensorNode(SensorKubernetes, System):
 	"""Instrument K8s nodes"""
 
@@ -198,7 +228,7 @@ class SensorNode(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Nodes", cls)]
 
 
@@ -221,7 +251,7 @@ class SensorConfigmaps(SensorKubernetes, Sensor):
 		return []
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Configmap", cls)]
 
 
@@ -241,7 +271,7 @@ class SensorSecrets(SensorKubernetes, Sensor):
 		)
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Secret", cls)]
 
 	def children(self) -> list[Scanner]:
@@ -264,7 +294,7 @@ class SensorStorageclass(SensorKubernetes, Sensor):
 		)
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("StorageClass", cls)]
 
 	def children(self) -> list[Scanner]:
@@ -297,7 +327,7 @@ class SensorPVCs(SensorKubernetes):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("PersistentVolumeClaim", cls)]
 
 
@@ -375,7 +405,7 @@ class SensorPods(SensorKubernetes, System):
 			return []
 
 		@classmethod
-		def registrations(cls) -> Registrations:
+		def registrations(cls) -> SensorKubernetes.Registrations:
 			return [("Pods#container", cls)]
 
 	@dataclass
@@ -415,11 +445,11 @@ class SensorPods(SensorKubernetes, System):
 		status = status_all
 
 		@classmethod
-		def registrations(cls) -> Registrations:
+		def registrations(cls) -> SensorKubernetes.Registrations:
 			return [("Pods#volume", cls)]
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [
 			("Pods", cls),
 			*cls.Container.registrations(),
@@ -458,7 +488,7 @@ class SensorReplicaSets(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("ReplicaSets", cls)]
 
 
@@ -487,7 +517,7 @@ class SensorDeployments(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Deployment", cls)]
 
 
@@ -516,7 +546,7 @@ class SensorDaemonset(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("DaemonSet", cls)]
 
 
@@ -544,7 +574,7 @@ class SensorStatefulsets(SensorKubernetes):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("StatefulSet", cls)]
 
 
@@ -572,7 +602,7 @@ class SensorJob(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Jobs", cls)]
 
 
@@ -606,7 +636,7 @@ class SensorServices(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Services", cls)]
 
 
@@ -640,7 +670,7 @@ class SensorIngresses(SensorKubernetes, System):
 				return []
 
 		@classmethod
-		def registrations(cls) -> Registrations:
+		def registrations(cls) -> SensorKubernetes.Registrations:
 			return [("Ingress#path", cls)]
 
 	ingress: kr8s.objects.Ingress
@@ -660,5 +690,5 @@ class SensorIngresses(SensorKubernetes, System):
 	status = status_all
 
 	@classmethod
-	def registrations(cls) -> Registrations:
+	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Ingress", cls), *cls.Path.registrations()]
