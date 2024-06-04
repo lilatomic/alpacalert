@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import itertools
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable
+from typing import Any, Iterable, TypeVar
 
 from pydantic import BaseModel
 
@@ -143,16 +144,15 @@ class Visualiser(ABC):
 		"""Visualise a Service"""
 
 
+def flatten(its: Iterable[Iterable]) -> list:
+	return list(itertools.chain.from_iterable(its))
+
+
 class Instrumentor:
 	@dataclass(frozen=True)
 	class Kind:
 		namespace: str
 		name: str
-
-	@dataclass(frozen=True)
-	class Req:
-		kind: Instrumentor.Kind
-		obj: Any
 
 	Registrations = Iterable[tuple[Kind, type["Instrumentor"]]]
 
@@ -160,7 +160,7 @@ class Instrumentor:
 	def registrations(self) -> Instrumentor.Registrations: ...
 
 	@abstractmethod
-	def instrument(self, req: Instrumentor.Req) -> list[Scanner]: ...
+	def instrument(self, registry: InstrumentorRegistry, kind: Instrumentor.Kind, *arg, **kwargs) -> list[Scanner]: ...
 
 
 class InstrumentorRegistry:
@@ -177,19 +177,18 @@ class InstrumentorRegistry:
 		else:
 			self.instrumentors = {}
 
-	def instrument(self, req: Instrumentor.Req) -> list[Scanner]:
+	def instrument(self, kind: Instrumentor.Kind, *args, **kwargs) -> list[Scanner]:
 		"""
 		Instrument an external entity by generating Sensors, Systems, or Services.
 		"""
-		instrumentor = self.instrumentors.get(req.kind)
+		instrumentor = self.instrumentors.get(kind)
 		if instrumentor:
 			try:
-				return instrumentor.instrument(req)
+				return instrumentor.instrument(self, kind, *args, **kwargs)
 			except Exception as e:
-				raise InstrumentorError(f"failed to instrument {req.kind=} {req.obj=}") from e
+				raise InstrumentorError(f"failed to instrument {kind=}") from e
 		else:
-			logging.warning(f"no provider {req.kind=}")
-			return []
+			raise InstrumentorError(f"no provider {kind=}")
 
 	def register(self, kind: Instrumentor.Kind, instrumentor: Instrumentor):
 		self.instrumentors[kind] = instrumentor

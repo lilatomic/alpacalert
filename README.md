@@ -34,6 +34,21 @@ Alpacalert has 2 more components:
 
 ## Design guidelines
 
+### Using the Registry
+
+alpacalert provides extensibility through the InstrumentorRegistry. This maps an object's kind to the instrumentors that should generate sensors for it. In general, extensions will provide these kinds, and users can add their own sensors to these. For example, a Kubernetes backend might check that PVC has a valid storage class and that it is bound; a user could also add a Prometheus query to ensure that the PVC is less than 80% full.
+
+#### The Registry for instrumenting subresources
+
+In general, you should use the registry to instrument subresources instead of calling the instrumentor directly. For the PVC example above, prefer
+```python
+self.registry.instrument(Instrumentor.Req(Instrumentor.Kind("kubernetes.io", "StorageClass"), storage_class_ref))
+```
+Instead of
+```python
+SensorStorageclass(self.registry, self.k8s, storage_class)
+```
+
 ### Instrumenting external systems
 
 For an example, we will use an Instrumentor that converts Grafana alerts into Scanners. Each alert will become a Sensor, and each Dashboard will become a Service with its alerts grouped into a System.

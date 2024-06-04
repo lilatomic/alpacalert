@@ -7,6 +7,9 @@ from functools import reduce
 from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
 
+class ScannerError(Exception): ...
+
+
 def status_any(self):
 	statuses = [sensor.status() for sensor in self.children()]
 	state = reduce(operator.or_, (status.state for status in statuses))
@@ -30,9 +33,12 @@ class SystemAny(System):
 
 
 def status_all(self):
-	statuses = [sensor.status() for sensor in self.children()]
-	state = reduce(operator.and_, (status.state for status in statuses))
-	return Status(state=state)
+	try:
+		statuses = [sensor.status() for sensor in self.children()]
+		state = reduce(operator.and_, (status.state for status in statuses))
+		return Status(state=state)
+	except Exception as e:
+		raise ScannerError(f"error instrumenting {type(self)}") from e
 
 
 @dataclass
