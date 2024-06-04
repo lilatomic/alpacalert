@@ -183,7 +183,10 @@ class InstrumentorRegistry:
 		"""
 		instrumentor = self.instrumentors.get(req.kind)
 		if instrumentor:
-			return instrumentor.instrument(req)
+			try:
+				return instrumentor.instrument(req)
+			except Exception as e:
+				raise InstrumentorError(f"failed to instrument {req.kind=} {req.obj=}") from e
 		else:
 			logging.warning(f"no provider {req.kind=}")
 			return []
