@@ -7,7 +7,8 @@ from functools import reduce
 from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
 
-class ScannerError(Exception): ...
+class ScannerError(Exception):
+	"""Exception while scanning"""
 
 
 def status_any(self):

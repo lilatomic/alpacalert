@@ -1,6 +1,5 @@
 """Instrument all Kubernetes objects"""
 
-import itertools
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -9,7 +8,8 @@ from typing import Any, Callable, Iterable, Optional, Type
 import kr8s
 
 from alpacalert.generic import SensorConstant, SystemAll, SystemAny, status_all
-from alpacalert.models import Instrumentor, InstrumentorError, InstrumentorRegistry, Log, Scanner, Sensor, Severity, State, Status, System, flatten
+from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
+from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
 
 
 class StorageClass(kr8s.objects.APIObject):
@@ -23,8 +23,8 @@ class StorageClass(kr8s.objects.APIObject):
 	scalable = False
 
 
-def k8skind(kind: str) -> Instrumentor.Kind:
-	return Instrumentor.Kind("kubernetes.io", kind)
+def k8skind(kind: str) -> Kind:
+	return Kind("kubernetes.io", kind)
 
 
 @dataclass
@@ -72,24 +72,25 @@ class SensorKubernetes(Scanner, ABC):
 
 	@classmethod
 	@abstractmethod
-	def registrations(cls) -> Registrations: ...
+	def registrations(cls) -> Registrations:
+		"""The Instrumentors that should be added for each Kind"""
 
 
 @dataclass
 class InstrumentorK8s(Instrumentor):
 	k8s: K8s
-	_registrations: Instrumentor.Registrations
+	_registrations: Registrations
 	k8s_sensor_cls: type[SensorKubernetes]
 
-	def registrations(self) -> Instrumentor.Registrations:
+	def registrations(self) -> Registrations:
 		return self._registrations
 
-	def instrument(self, registry: InstrumentorRegistry, kind: Instrumentor.Kind, *args, **kwargs) -> list[Scanner]:
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, *args, **kwargs) -> list[Scanner]:
 		return [self.k8s_sensor_cls(registry, self.k8s, *args, **kwargs)]
 
 
 class InstrumentorK8sRegistry(InstrumentorRegistry):
-	def __init__(self, k8s: K8s, sensors: dict[Instrumentor.Kind, SensorKubernetes] | None = None):
+	def __init__(self, k8s: K8s, sensors: dict[Kind, SensorKubernetes] | None = None):
 		super().__init__()
 		self.k8s = k8s
 
@@ -161,6 +162,7 @@ class SensorCluster(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return "cluster"
 
 	def children(self) -> list[Scanner]:
@@ -211,6 +213,7 @@ class SensorNode(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"node {self.node.name}"
 
 	def children(self) -> list[Scanner]:
@@ -232,6 +235,7 @@ class SensorConfigmaps(SensorKubernetes, Sensor):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"configmap {self.configmap.name} exists"
 
 	def status(self) -> Status:
@@ -301,6 +305,7 @@ class SensorPVCs(SensorKubernetes):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"pvc {self.pvc.name}"
 
 	def children(self) -> list[Scanner]:
@@ -332,6 +337,7 @@ class SensorPods(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"pod {self.pod.name}"
 
 	def children(self) -> list[Scanner]:
@@ -473,6 +479,7 @@ class SensorReplicaSets(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"replicaset {self.replicaset.name}"
 
 	def children(self) -> list[Scanner]:
@@ -505,6 +512,7 @@ class SensorDeployments(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"deployment {self.deployment.name}"
 
 	def children(self) -> list[Scanner]:
@@ -537,6 +545,7 @@ class SensorDaemonset(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"daemonset {self.daemonset.name}"
 
 	def children(self) -> list[Scanner]:
@@ -568,6 +577,7 @@ class SensorStatefulsets(SensorKubernetes):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"statefulset {self.statefulset.name}"
 
 	def children(self) -> list[Scanner]:
@@ -601,6 +611,7 @@ class SensorJob(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return f"job {self.job.name}"
 
 	def children(self) -> list[Scanner]:
@@ -693,6 +704,8 @@ class SensorIngresses(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
+		"""Name"""
 		return f"ingress {self.ingress.name}"
 
 	def children(self) -> list[Scanner]:

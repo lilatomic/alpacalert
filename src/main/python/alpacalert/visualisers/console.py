@@ -1,7 +1,7 @@
 import itertools
 from dataclasses import dataclass, field
 
-from alpacalert.models import Log, Scanner, Service, Visualiser, Status, State
+from alpacalert.models import Log, Scanner, Service, State, Visualiser
 
 
 def mk_symbols(passing: str, failing: str, unknown: str):
