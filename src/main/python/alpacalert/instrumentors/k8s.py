@@ -115,21 +115,6 @@ class InstrumentorK8sRegistry(InstrumentorRegistry):
 			registration = k8skind(sensor[0])
 			self.register(registration, InstrumentorK8s(k8s, [registration], sensor[1]))
 
-	# def instrument(self, req: Instrumentor.Req) -> list[Scanner]:
-	# 	scanners = []
-	#
-	# 	for kind, sensor in self.instrumentors.items():
-	# 		if "#" in kind:
-	# 			continue
-	# 		objs = self.k8s.get_all(kind)
-	# 		for obj in objs:
-	# 			try:
-	# 				scanners.append(sensor(self.k8s, obj))
-	# 			except Exception as e:
-	# 				raise InstrumentorError(f"Failed to instrument {kind=} {obj.name}") from e
-	#
-	# 	return scanners
-
 
 def condition_is(condition, passing_if: bool) -> State:
 	"""Evaluate the truthiness of a Kubernetes condition."""
