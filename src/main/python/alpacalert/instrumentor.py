@@ -13,16 +13,18 @@ class Kind:
 	name: str
 
 
-Registrations = Iterable[tuple[Kind, type["Instrumentor"]]]
+Registrations = Iterable[tuple[Kind, "Instrumentor"]]
 
 
 class Instrumentor:
+	registry: InstrumentorRegistry
+
 	@abstractmethod
 	def registrations(self) -> Registrations:
 		"""The Instrumentors that should be added for each Kind"""
 
 	@abstractmethod
-	def instrument(self, registry: InstrumentorRegistry, kind: Kind, *arg, **kwargs) -> list[Scanner]:
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		"""Add scanners for an object"""
 
 
@@ -40,14 +42,14 @@ class InstrumentorRegistry:
 		else:
 			self.instrumentors = {}
 
-	def instrument(self, kind: Kind, *args, **kwargs) -> list[Scanner]:
+	def instrument(self, kind: Kind, **kwargs) -> list[Scanner]:
 		"""
 		Instrument an external entity by generating Sensors, Systems, or Services.
 		"""
 		instrumentor = self.instrumentors.get(kind)
 		if instrumentor:
 			try:
-				return instrumentor.instrument(self, kind, *args, **kwargs)
+				return instrumentor.instrument(self, kind, **kwargs)
 			except Exception as e:
 				raise InstrumentorError(f"failed to instrument {kind=}") from e
 		else:

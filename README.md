@@ -40,13 +40,14 @@ alpacalert provides extensibility through the InstrumentorRegistry. This maps an
 
 #### Registering new Kinds
 
-Registry Kinds have 2 components: a namespace and a name. The namespace groups objects from the same domain. For example, "kubernetes.io" for Kubernetes or "grafana.org" for Grafana. The namespace should be a domain name. The name should be a valid URI path for objects that can be instrumented on their own. It may contain a fragment for resources that cannot be instrumented on their own, and must be subresources. For example, a Kubernetes Pod can be pulled with `kubectl get pod/my-pod"; it could have the name "Pod". A volume on a Pod cannot be pulled directly with kubectl and must be pulled as part of the Pod; it could have the name "Pod#volume".
+Registry Kinds have 2 components: a namespace and a name. The namespace groups objects from the same domain. For example, "kubernetes.io" for Kubernetes or "grafana.org" for Grafana. The namespace should be a domain name. The name should be a valid URI path for objects that can be instrumented on their own. It may contain a path for resources that cannot be instrumented on their own, and must be subresources. For example, a Kubernetes Pod can be pulled with `kubectl get pod/my-pod"; it could have the name "Pod". A volume on a Pod cannot be pulled directly with kubectl and must be pulled as part of the Pod; it could have the name "Pod/volume".
 
 #### Use the Registry for instrumenting subresources
 
 In general, you should use the registry to instrument subresources (resources your resource depends on) instead of calling the instrumentor directly. For the PVC example above, prefer
+
 ```python
-self.registry.instrument(Instrumentor.Req(Instrumentor.Kind("kubernetes.io", "StorageClass"), storage_class_ref))
+self.registry.instrument(Instrumentor.Req(Instrumentor.Kind("kubernetes.io", "StorageClass"), storage_class_ref), )
 ```
 instead of
 ```python
