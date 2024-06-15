@@ -274,3 +274,22 @@ class InstrumentorGrafana(Instrumentor):
 
 		folders = self.api.get_folders()
 		return [ScannerGrafana(name, flatten(registry.instrument(ScannerFolder.kind, folder=e) for e in folders))]
+
+
+class RegistryGrafana(InstrumentorRegistry):
+
+	def __init__(self, grafana: GrafanaApi, instrumentors: InstrumentorRegistry.Registry | None = None):
+		super().__init__(instrumentors)
+		self.grafana = grafana
+
+		grafana_instrumentors = [
+			InstrumentorAlert,
+			InstrumentorAlertRule,
+			InstrumentorAlertRuleGroup,
+			InstrumentorAlertFolder,
+			InstrumentorGrafana,
+		]
+		for cls in grafana_instrumentors:
+			instrumentor = cls(grafana)
+			for kind, instrumentor in instrumentor.registrations():
+				self.register(kind, instrumentor)

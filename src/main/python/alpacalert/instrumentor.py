@@ -58,6 +58,10 @@ class InstrumentorRegistry:
 	def register(self, kind: Kind, instrumentor: Instrumentor):
 		self.instrumentors[kind] = instrumentor
 
+	def extend(self, other: InstrumentorRegistry):
+		for kind, instrumentor in other.instrumentors.items():
+			self.register(kind, instrumentor)
+
 
 class InstrumentorError(Exception):
 	"""An error instrumenting an object"""
