@@ -45,6 +45,12 @@ class GrafanaApi:
 	def by_name(self, obj: Iterable[T]) -> dict[str, T]:
 		return {e.name: e for e in obj}
 
+	def get_folder(self, folder: str) -> list[m.Group]:
+		return [e for e in (self.request_alertgroups()) if e.file == folder]
+
+	def get_folders(self) -> set[str]:
+		return {e.file for e in self.request_alertgroups()}
+
 	def get_group(self, group: str) -> m.Group:
 		group_names = self.by_name(self.request_alertgroups())
 
@@ -208,6 +214,40 @@ class InstrumentorAlertRuleGroup(Instrumentor):
 
 
 @dataclass
+class ScannerFolder(System):
+	"""Grafana Alert Folders aren't returned by the endpoint in a structure. They must be assembled from the labels"""
+	folder_name: str
+	groups: list[ScannerGroup]
+
+	kind: ClassVar[Kind] = Kind("grafana.org/alerts", "folder")
+
+	@property
+	def name(self) -> str:
+		return self.folder_name
+
+	status = status_all
+
+	def children(self) -> list[Scanner]:
+		return self.groups
+
+
+@dataclass
+class InstrumentorAlertFolder(Instrumentor):
+	api: GrafanaApi
+
+	def registrations(self) -> Registrations:
+		return [
+			(ScannerFolder.kind, self),
+		]
+
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
+		folder_name = kwargs["folder"]
+		groups = self.api.get_folder(folder_name)
+
+		return [ScannerFolder(folder_name, flatten(registry.instrument(ScannerGroup.kind, group=GrafanaObjRef(group.name)) for group in groups))]
+
+
+@dataclass
 class ScannerGrafana(System):
 	name: str
 	groups: list[ScannerGroup]
@@ -218,6 +258,7 @@ class ScannerGrafana(System):
 
 	def children(self) -> list[Scanner]:
 		return self.groups
+
 
 @dataclass
 class InstrumentorGrafana(Instrumentor):
@@ -231,5 +272,5 @@ class InstrumentorGrafana(Instrumentor):
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		name = kwargs.get("name", "Grafana")
 
-		groups = self.api.request_alertgroups()
-		return [ScannerGrafana(name, flatten(registry.instrument(ScannerGroup.kind, group=e) for e in groups))]
+		folders = self.api.get_folders()
+		return [ScannerGrafana(name, flatten(registry.instrument(ScannerFolder.kind, folder=e) for e in folders))]

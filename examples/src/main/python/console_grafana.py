@@ -3,7 +3,7 @@
 
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import InstrumentorRegistry, Kind
-from alpacalert.instrumentors.grafana import GrafanaApi, GrafanaObjRef, InstrumentorAlert, InstrumentorAlertRule, InstrumentorAlertRuleGroup, InstrumentorGrafana
+from alpacalert.instrumentors.grafana import GrafanaApi, GrafanaObjRef, InstrumentorAlert, InstrumentorAlertRule, InstrumentorAlertRuleGroup, InstrumentorGrafana, InstrumentorAlertFolder
 from alpacalert.visualisers.console import VisualiserConsole, mk_symbols
 from requests.sessions import Session
 
@@ -16,6 +16,7 @@ if __name__ == "__main__":
 	ia = InstrumentorAlert(grafana)
 	iar = InstrumentorAlertRule(grafana)
 	iarg = InstrumentorAlertRuleGroup(grafana)
+	iaf = InstrumentorAlertFolder(grafana)
 	ig = InstrumentorGrafana(grafana)
 
 	registry = InstrumentorRegistry(
@@ -25,6 +26,7 @@ if __name__ == "__main__":
 				*iar.registrations(),
 				*iarg.registrations(),
 				*ig.registrations(),
+				*iaf.registrations(),
 			]
 		)
 	)

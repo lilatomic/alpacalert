@@ -9,14 +9,15 @@ from typing_extensions import NotRequired, TypedDict
 # Define Enums
 class AlertState(str, Enum):
 	normal = "Normal"
+	normal_error = "Normal (Error)"
 	alerting = "Alerting"
+	alerting_nodata = "Alerting (NoData)"
+	alerting_error = "Alerting (Error)"
 	pending = "Pending"
+	pending_nodata = "Pending (NoData)"
 	nodata = "NoData"
 	error = "Error"
 	inactive = "inactive"
-	normal_error = "Normal (Error)"
-	alerting_nodata = "Alerting (NoData)"
-	alerting_error = "Alerting (Error)"
 
 
 class HealthEnum(str, Enum):
