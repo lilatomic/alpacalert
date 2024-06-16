@@ -2,7 +2,7 @@
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional, Type
 
 import kr8s
@@ -40,13 +40,21 @@ class K8sObjRef:
 class K8s:
 	kr8s: kr8s
 
+	_cache_get_all: dict[tuple[str, str]: Any] = field(default_factory=dict)
+
 	def exists(self, kind: str, namespace: str, name: str) -> bool:
 		"""Validate that a resource exists"""
 		resources = kr8s.get(kind, name, namespace=namespace)
 		return len(resources) > 0
 
 	def get_all(self, kind: str, namespace: str = kr8s.ALL) -> list:
-		return self.kr8s.get(kind, namespace=namespace)
+		k = (kind, namespace)
+		if k in self._cache_get_all:
+			return self._cache_get_all[k]
+		else:
+			v = self.kr8s.get(kind, namespace=namespace)
+			self._cache_get_all[k] = v
+			return v
 
 	def get(self, kind: str, namespace: str, name: str) -> Optional[kr8s.objects.APIObject]:
 		result = self.kr8s.get(kind, name, namespace=namespace)
@@ -494,15 +502,18 @@ class SensorReplicaSets(SensorKubernetes, System):
 	def children(self) -> list[Scanner]:
 		"""Instrument a ReplicaSet."""
 		count_sensors = replica_statuses(self.replicaset.spec.replicas, {"replicas", "availableReplicas", "readyReplicas"}, self.replicaset.status)
-		pod_sensors = SystemAll(
-			name="pods",
-			scanners=flatten(
-				[
-					self.registry.instrument(k8skind("Pods"), pod=e)
-					for e in self.k8s.children("pods", self.replicaset.namespace, label_selector=self.replicaset.spec.selector.matchLabels)
-				]
-			),
-		)  # TODO: need to filter ownerReferences too
+		if self.replicaset.spec.replicas:
+			pod_sensors = SystemAll(
+				name="pods",
+				scanners=flatten(
+					[
+						self.registry.instrument(k8skind("Pods"), pod=e)
+						for e in self.k8s.children("pods", self.replicaset.namespace, label_selector=self.replicaset.spec.selector.matchLabels)
+					]
+				),
+			)  # TODO: need to filter ownerReferences too
+		else:
+			pod_sensors = SensorConstant.passing("pods", [Log(message="replicaset has no pods", severity=Severity.INFO)])
 
 		return [count_sensors, pod_sensors]
 
