@@ -15,6 +15,7 @@ backend_packages = [
 root_patterns = [
 	"src/main/python",
 	"src/it/python",
+	"src/it/resources",
 	"examples/src/main/python",
 ]
 
