@@ -1,8 +1,11 @@
 import itertools
+import json
+import logging
 from dataclasses import dataclass, field
 
-from alpacalert.models import Log, Scanner, Service, State, Visualiser
+from alpacalert.models import Log, Scanner, Service, State, Visualiser, Status, Severity
 
+l = logging.getLogger(__name__)
 
 def mk_symbols(passing: str, failing: str, unknown: str):
 	return {
@@ -28,7 +31,13 @@ class VisualiserConsole(Visualiser):
 
 	def _visualise_scanner(self, scanner: Scanner, indent: int) -> list[str]:
 		indent_s = "\t" * indent
-		status = scanner.status()
+		try:
+			status = scanner.status()
+		except:
+			ei = {"name": scanner.name, "type": type(scanner).__name__, "children": [str(e) for e in scanner.children()]}
+			message = f"Unable to get status for {json.dumps(ei)}"
+			l.error(message, exc_info=True)
+			status = Status(state=State.UNKNOWN, messages=[Log(message=message, severity=Severity.ERROR)])
 		this = f"{indent_s}{self.symbols[status.state]} : {scanner.name}"
 		logs = [self._visualise_log(log, indent) for log in status.messages]
 		children = [self._visualise_scanner(e, indent + 1) for e in scanner.children()]
