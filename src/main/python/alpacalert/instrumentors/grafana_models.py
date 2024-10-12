@@ -1,3 +1,6 @@
+"""Models for AlertManager"""
+# pylint: disable=C0115
+
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
@@ -34,7 +37,8 @@ class Labels(TypedDict):
 	__name__: NotRequired[str]
 
 
-class Annotations(TypedDict): ...
+class Annotations(TypedDict):
+	pass
 
 
 class Alert(BaseModel):

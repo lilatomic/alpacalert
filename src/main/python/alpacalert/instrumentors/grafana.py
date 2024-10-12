@@ -1,3 +1,5 @@
+"""Instrument Grafana"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,6 +18,8 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class GrafanaObjRef:
+	"""A reference to an object in Grafana"""
+
 	name: str
 	p: dict[str, str] = field(default_factory=dict)
 
@@ -25,10 +29,13 @@ class GrafanaObjRef:
 
 @dataclass
 class GrafanaApi:
+	"""Interact with Grafana"""
+
 	base_url: str
 	session: requests.Session
 
 	def call(self, req: requests.Request):
+		"""Send a request"""
 		return self.session.send(self.session.prepare_request(req))
 
 	@cached(cache=TTLCache(maxsize=1, ttl=60), key=lambda s: None)
@@ -40,18 +47,22 @@ class GrafanaApi:
 		return m.GrafanaAlertsResponse.model_validate_json(res.content).data.groups
 
 	def index_alertgroups(self, groups: list[m.Group]) -> dict[str, dict[str, tuple[m.Group, m.Rule]]]:
+		"""Index rules by groups by their names"""
 		return {e.name: {f.name: (e, f) for f in e.rules} for e in groups}
 
 	def by_name(self, obj: Iterable[T]) -> dict[str, T]:
+		"""Index a collection by name"""
 		return {e.name: e for e in obj}
 
 	def get_folder(self, folder: str) -> list[m.Group]:
 		return [e for e in (self.request_alertgroups()) if e.file == folder]
 
 	def get_folders(self) -> set[str]:
+		"""Get the names of all folders"""
 		return {e.file for e in self.request_alertgroups()}
 
 	def get_group(self, group: str) -> m.Group:
+		"""Get a single Alert group"""
 		group_names = self.by_name(self.request_alertgroups())
 
 		if group not in group_names:
@@ -59,6 +70,7 @@ class GrafanaApi:
 		return group_names[group]
 
 	def get_rule(self, group: str, name: str) -> m.Rule:
+		"""Get an Alert rule"""
 		group = self.get_group(group)
 		rules_by_name = self.by_name(group.rules)
 
@@ -78,6 +90,7 @@ class SensorAlert(Sensor):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return self.alert.name()
 
 	def status(self) -> Status:
@@ -109,6 +122,8 @@ class SensorAlert(Sensor):
 
 @dataclass
 class InstrumentorAlert(Instrumentor):
+	"""Instrument a Grafana Alert"""
+
 	api: GrafanaApi
 
 	def registrations(self) -> Registrations:
@@ -122,6 +137,8 @@ class InstrumentorAlert(Instrumentor):
 
 @dataclass
 class ScannerRule(System):
+	"""Scanner for a Grafana Alert rule"""
+
 	rule: m.Rule
 	alerts: list[SensorAlert]
 	state_when_pending: State = State.PASSING
@@ -130,6 +147,7 @@ class ScannerRule(System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return self.rule.name
 
 	def status(self) -> Status:
@@ -157,6 +175,8 @@ class ScannerRule(System):
 
 @dataclass
 class InstrumentorAlertRule(Instrumentor):
+	"""Instrument an Alert rule"""
+
 	api: GrafanaApi
 
 	def registrations(self) -> Registrations:
@@ -177,6 +197,8 @@ class InstrumentorAlertRule(Instrumentor):
 
 @dataclass
 class ScannerGroup(System):
+	"""Scanner for a Grafana Alert group"""
+
 	group: m.Group
 	rules: list[ScannerRule]
 
@@ -184,6 +206,7 @@ class ScannerGroup(System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return self.group.name
 
 	status = status_all
@@ -194,6 +217,8 @@ class ScannerGroup(System):
 
 @dataclass
 class InstrumentorAlertRuleGroup(Instrumentor):
+	"""Instrument an Alert group"""
+
 	api: GrafanaApi
 
 	def registrations(self) -> Registrations:
@@ -224,6 +249,7 @@ class ScannerFolder(System):
 
 	@property
 	def name(self) -> str:
+		"""Name"""
 		return self.folder_name
 
 	status = status_all
@@ -234,6 +260,8 @@ class ScannerFolder(System):
 
 @dataclass
 class InstrumentorAlertFolder(Instrumentor):
+	"""Instrument a Grafana Alert folder"""
+
 	api: GrafanaApi
 
 	def registrations(self) -> Registrations:
@@ -250,6 +278,8 @@ class InstrumentorAlertFolder(Instrumentor):
 
 @dataclass
 class ScannerGrafana(System):
+	"""Scanner for a Grafana instance"""
+
 	name: str
 	groups: list[ScannerGroup]
 
@@ -263,6 +293,8 @@ class ScannerGrafana(System):
 
 @dataclass
 class InstrumentorGrafana(Instrumentor):
+	"""Instrument a Grafana instance"""
+
 	api: GrafanaApi
 
 	def registrations(self) -> Registrations:
@@ -278,6 +310,8 @@ class InstrumentorGrafana(Instrumentor):
 
 
 class RegistryGrafana(InstrumentorRegistry):
+	"""Registry for all Grafana Instrumentors"""
+
 	def __init__(self, grafana: GrafanaApi, instrumentors: InstrumentorRegistry.Registry | None = None):
 		super().__init__(instrumentors)
 		self.grafana = grafana

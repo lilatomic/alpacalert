@@ -13,6 +13,8 @@ from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, Sys
 
 
 class StorageClass(kr8s.objects.APIObject):
+	"""Kr8s descriptor for StorageClasses"""
+
 	kind = "StorageClass"
 	version = "storage.k8s.io/v1"
 	_asyncio = False
@@ -24,6 +26,7 @@ class StorageClass(kr8s.objects.APIObject):
 
 
 def k8skind(kind: str) -> Kind:
+	"""Make an Alpacalert Kind for the Kubernetes kind"""
 	return Kind("kubernetes.io", kind)
 
 
@@ -38,6 +41,8 @@ class K8sObjRef:
 
 @dataclass
 class K8s:
+	"""Interface to Kubernetes"""
+
 	kr8s: kr8s
 
 	_cache_get_all: dict[tuple[str, str] : Any] = field(default_factory=dict)
@@ -48,6 +53,7 @@ class K8s:
 		return len(resources) > 0
 
 	def get_all(self, kind: str, namespace: str = kr8s.ALL) -> list:
+		"""Get all Kubernetes objects of a kind"""
 		k = (kind, namespace)
 		if k in self._cache_get_all:
 			return self._cache_get_all[k]
@@ -57,6 +63,7 @@ class K8s:
 			return v
 
 	def get(self, kind: str, namespace: str, name: str) -> Optional[kr8s.objects.APIObject]:
+		"""Get a single Kubernetes object"""
 		result = self.kr8s.get(kind, name, namespace=namespace)
 		if len(result) == 1:
 			return result[0]
@@ -66,6 +73,7 @@ class K8s:
 			raise InstrumentorError(f"Multiple resources found for {kind=} {namespace=} {name=}")
 
 	def children(self, kind: str, namespace: str, label_selector: dict) -> list[kr8s.objects.APIObject]:
+		"""Find child objects of a Kubernetes object by their label selector"""
 		return self.kr8s.get(kind, namespace=namespace, label_selector=label_selector)
 
 
@@ -86,6 +94,8 @@ class SensorKubernetes(Scanner, ABC):
 
 @dataclass
 class InstrumentorK8s(Instrumentor):
+	"""Instrument an entire Kubernetes cluster"""
+
 	k8s: K8s
 	_registrations: Registrations
 	k8s_sensor_cls: type[SensorKubernetes]
@@ -98,6 +108,8 @@ class InstrumentorK8s(Instrumentor):
 
 
 class InstrumentorK8sRegistry(InstrumentorRegistry):
+	"""Registry of all Kubernetes Instrumentors."""
+
 	def __init__(self, k8s: K8s, sensors: dict[Kind, SensorKubernetes] | None = None):
 		super().__init__()
 		self.k8s = k8s
@@ -191,6 +203,7 @@ class SensorCluster(SensorKubernetes, System):
 
 	@classmethod
 	def k8s_instrumentors(cls):
+		"""All kubernetes instrumentors"""
 		default_instrumentors = [
 			*SensorNode.registrations(),
 			*SensorConfigmaps.registrations(),
@@ -267,6 +280,7 @@ class SensorSecrets(SensorKubernetes, Sensor):
 
 	@property
 	def name(self):
+		"""Name"""
 		return (f"secret {self.secret.name} exists",)
 
 	def status(self) -> Status:
@@ -290,6 +304,7 @@ class SensorStorageclass(SensorKubernetes, Sensor):
 
 	@property
 	def name(self):
+		"""Name"""
 		return f"storageclass {self.storageclass.name} exists"
 
 	def status(self) -> Status:
@@ -387,10 +402,13 @@ class SensorPods(SensorKubernetes, System):
 
 	@dataclass
 	class Container(SensorKubernetes, Sensor):
+		"""A container within a pod."""
+
 		container_status: Any
 
 		@property
 		def name(self):
+			"""Name"""
 			return f"Container status: {self.container_status.name}"
 
 		def status(self) -> Status:
@@ -428,14 +446,18 @@ class SensorPods(SensorKubernetes, System):
 
 	@dataclass
 	class Volume(SensorKubernetes, System):
+		"""A volume mounted by a pod."""
+
 		pod: kr8s.objects.Pod
 		volume_name: str
 		volume: Any
 
 		@property
 		def name(self):
+			"""Name"""
 			return f"volume {self.volume_name}"
 
+		# pylint: disable=too-many-return-statements
 		def children(self) -> list[Scanner]:
 			"""Instrument volumes on a pod"""
 			if "configMap" in self.volume:
@@ -666,6 +688,7 @@ class SensorServices(SensorKubernetes, System):
 
 	@property
 	def name(self):
+		"""Name"""
 		return f"service {self.service.name}"
 
 	def children(self) -> list[Scanner]:
@@ -695,6 +718,8 @@ class SensorIngresses(SensorKubernetes, System):
 
 	@dataclass
 	class Path(SensorKubernetes, Sensor):
+		"""A path within an Ingress"""
+
 		name: str
 		namespace: str
 		path: Any
@@ -727,7 +752,6 @@ class SensorIngresses(SensorKubernetes, System):
 
 	@property
 	def name(self) -> str:
-		"""Name"""
 		"""Name"""
 		return f"ingress {self.ingress.name}"
 

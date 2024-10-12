@@ -34,7 +34,7 @@ class VisualiserConsole(Visualiser):
 		indent_s = "\t" * indent
 		try:
 			status = scanner.status()
-		except:
+		except:  # noqa: E722
 			ei = {"name": scanner.name, "type": type(scanner).__name__, "children": [str(e) for e in scanner.children()]}
 			message = f"Unable to get status for {json.dumps(ei)}"
 			l.error(message, exc_info=True)

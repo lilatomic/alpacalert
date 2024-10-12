@@ -14,7 +14,7 @@ target-version = "py310"
 fixable = ["ALL"]
 extend-select = ["I", "W", "E"]
 preview = true
-ignore = ["W191"]
+ignore = ["W191", "E741"]
 
 [tool.ruff.format]
 indent-style="tab"
