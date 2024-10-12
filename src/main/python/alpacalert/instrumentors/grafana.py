@@ -216,6 +216,7 @@ class InstrumentorAlertRuleGroup(Instrumentor):
 @dataclass
 class ScannerFolder(System):
 	"""Grafana Alert Folders aren't returned by the endpoint in a structure. They must be assembled from the labels"""
+
 	folder_name: str
 	groups: list[ScannerGroup]
 
@@ -277,7 +278,6 @@ class InstrumentorGrafana(Instrumentor):
 
 
 class RegistryGrafana(InstrumentorRegistry):
-
 	def __init__(self, grafana: GrafanaApi, instrumentors: InstrumentorRegistry.Registry | None = None):
 		super().__init__(instrumentors)
 		self.grafana = grafana

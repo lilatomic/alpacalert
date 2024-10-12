@@ -15,7 +15,9 @@ if __name__ == "__main__":
 
 	registry = RegistryGrafana(grafana)
 
-	systems = registry.instrument(Kind("grafana.org/alerts", "grafana"), )
+	systems = registry.instrument(
+		Kind("grafana.org/alerts", "grafana"),
+	)
 	assert len(systems) == 1
 
 	my_cluster = ServiceBasic(name="Grafana play.grafana.org", system=systems[0])

@@ -3,9 +3,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-from alpacalert.models import Log, Scanner, Service, State, Visualiser, Status, Severity
+from alpacalert.models import Log, Scanner, Service, Severity, State, Status, Visualiser
 
 l = logging.getLogger(__name__)
+
 
 def mk_symbols(passing: str, failing: str, unknown: str):
 	return {

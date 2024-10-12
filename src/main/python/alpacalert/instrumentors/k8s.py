@@ -40,7 +40,7 @@ class K8sObjRef:
 class K8s:
 	kr8s: kr8s
 
-	_cache_get_all: dict[tuple[str, str]: Any] = field(default_factory=dict)
+	_cache_get_all: dict[tuple[str, str] : Any] = field(default_factory=dict)
 
 	def exists(self, kind: str, namespace: str, name: str) -> bool:
 		"""Validate that a resource exists"""
@@ -513,7 +513,7 @@ class SensorReplicaSets(SensorKubernetes, System):
 				),
 			)  # TODO: need to filter ownerReferences too
 		else:
-			pod_sensors = SensorConstant.passing("pods", [Log(message="replicaset has no pods", severity=Severity.INFO)])
+			pod_sensors = SensorConstant.passing("pods", [Log(message="replicaset requests no pods", severity=Severity.INFO)])
 
 		return [count_sensors, pod_sensors]
 
