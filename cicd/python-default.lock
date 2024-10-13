@@ -10,6 +10,7 @@
 //   ],
 //   "generated_with_requirements": [
 //     "cachetools~=5.0",
+//     "click>=8.0.0",
 //     "kr8s~=0.14.0",
 //     "mypy>=1.5.0",
 //     "pydantic>=2.0",
@@ -629,6 +630,27 @@
           "requires_dists": [],
           "requires_python": ">=3.7.0",
           "version": "3.4.0"
+        },
+        {
+          "artifacts": [
+            {
+              "algorithm": "sha256",
+              "hash": "ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28",
+              "url": "https://files.pythonhosted.org/packages/00/2e/d53fa4befbf2cfa713304affc7ca780ce4fc1fd8710527771b58311a3229/click-8.1.7-py3-none-any.whl"
+            },
+            {
+              "algorithm": "sha256",
+              "hash": "ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de",
+              "url": "https://files.pythonhosted.org/packages/96/d3/f04c7bfcf5c1862a2a5b845c6b2b360488cf47af55dfa79c98f6a6bf98b5/click-8.1.7.tar.gz"
+            }
+          ],
+          "project_name": "click",
+          "requires_dists": [
+            "colorama; platform_system == \"Windows\"",
+            "importlib-metadata; python_version < \"3.8\""
+          ],
+          "requires_python": ">=3.7",
+          "version": "8.1.7"
         },
         {
           "artifacts": [
@@ -1828,11 +1850,12 @@
   "only_builds": [],
   "only_wheels": [],
   "path_mappings": {},
-  "pex_version": "2.3.0",
+  "pex_version": "2.3.3",
   "pip_version": "24.0",
   "prefer_older_binary": false,
   "requirements": [
     "cachetools~=5.0",
+    "click>=8.0.0",
     "kr8s~=0.14.0",
     "mypy>=1.5.0",
     "pydantic>=2.0",

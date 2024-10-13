@@ -4,9 +4,6 @@ python_requirements(
 )
 
 python_requirements(
-    name="root",
-)
-python_requirements(
     name="requirements_test",
     source="requirements_test.txt",
 )

@@ -1,4 +1,0 @@
-pydantic>=2.0
-kr8s~=0.14.0
-requests~=2.0
-cachetools~=5.0

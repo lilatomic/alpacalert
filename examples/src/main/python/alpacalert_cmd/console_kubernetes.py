@@ -3,6 +3,8 @@
 
 import logging
 
+import click
+
 import kr8s
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
@@ -11,10 +13,13 @@ from alpacalert.visualisers.console import VisualiserConsole, mk_symbols, Show
 
 l = logging.getLogger(__name__)
 
-if __name__ == "__main__":
+@click.command
+@click.option("--show", type=click.Choice([e.value for e in Show]), help="What to display", default=Show.ALL.value)
+def k8s(show):
+	show = Show(show)
 	logging.basicConfig()
 
-	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=Show.ONLY_FAILING)
+	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
 	k8s = K8s(kr8s)
 
 	instrumentor = InstrumentorK8sRegistry(k8s)
@@ -22,4 +27,4 @@ if __name__ == "__main__":
 
 	my_cluster = ServiceBasic(name="cluster kind-kind", system=SystemAll(name="cluster kind-kind", scanners=systems))
 
-	print(v.visualise(my_cluster))
+	click.echo(v.visualise(my_cluster))

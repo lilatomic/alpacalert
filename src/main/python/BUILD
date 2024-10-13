@@ -1,5 +1,7 @@
 resource(name="pyproject", source="pyproject.toml")
 
+python_requirements(source="pyproject.toml")
+
 python_distribution(
 	name="alpacalert",
 	dependencies=[
