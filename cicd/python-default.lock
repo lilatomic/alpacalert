@@ -17,7 +17,8 @@
 //     "pytest>7",
 //     "requests~=2.0",
 //     "types-PyYAML",
-//     "types-requests"
+//     "types-requests",
+//     "typing_extensions~=4.0"
 //   ],
 //   "manylinux": "manylinux2014",
 //   "requirement_constraints": [],
@@ -59,13 +60,13 @@
           "artifacts": [
             {
               "algorithm": "sha256",
-              "hash": "c7d2e9d63e31599eeb636c8c5c03a7e108d73b345f064f1c19fdc87b79036a9a",
-              "url": "https://files.pythonhosted.org/packages/9e/ef/7a4f225581a0d7886ea28359179cb861d7fbcdefad29663fc1167b86f69f/anyio-4.6.0-py3-none-any.whl"
+              "hash": "0632863c9044798a494a05cab0b159dfad6a3f064094863a45878320eb4e8ed2",
+              "url": "https://files.pythonhosted.org/packages/96/4e/93dba0472b569c0b4f2c848fa1f06b70242836b2da1741370288271c3f9d/anyio-4.6.1-py3-none-any.whl"
             },
             {
               "algorithm": "sha256",
-              "hash": "137b4559cbb034c477165047febb6ff83f390fc3b20bf181c1fc0a728cb8beeb",
-              "url": "https://files.pythonhosted.org/packages/78/49/f3f17ec11c4a91fe79275c426658e509b07547f874b14c1a526d86a83fc8/anyio-4.6.0.tar.gz"
+              "hash": "936e6613a08e8f71a300cfffca1c1c0806335607247696ac45f9b32c63bfb9aa",
+              "url": "https://files.pythonhosted.org/packages/eb/27/6fa26db273f2454d25104b3327192fca83a08eec62f8d61c1078d4a4ed66/anyio-4.6.1.tar.gz"
             }
           ],
           "project_name": "anyio",
@@ -86,11 +87,12 @@
             "sphinx-rtd-theme; extra == \"doc\"",
             "trio>=0.26.1; extra == \"trio\"",
             "trustme; extra == \"test\"",
+            "truststore>=0.9.1; python_version >= \"3.10\" and extra == \"test\"",
             "typing-extensions>=4.1; python_version < \"3.11\"",
             "uvloop>=0.21.0b1; (platform_python_implementation == \"CPython\" and platform_system != \"Windows\") and extra == \"test\""
           ],
           "requires_python": ">=3.9",
-          "version": "4.6.0"
+          "version": "4.6.1"
         },
         {
           "artifacts": [
@@ -1862,7 +1864,8 @@
     "pytest>7",
     "requests~=2.0",
     "types-PyYAML",
-    "types-requests"
+    "types-requests",
+    "typing_extensions~=4.0"
   ],
   "requires_python": [
     ">=3.10"

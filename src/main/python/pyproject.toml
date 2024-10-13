@@ -31,6 +31,7 @@ dependencies = [
 	"kr8s~=0.14.0",
 	"requests~=2.0",
 	"cachetools~=5.0",
+	"typing_extensions~=4.0"
 ]
 
 [project.urls]

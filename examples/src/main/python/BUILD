@@ -1,6 +1,6 @@
 resource(name="pyproject", source="pyproject.toml")
 
-python_requirements(source="pyproject.toml")
+python_requirements(source="requirements.txt")
 
 python_distribution(
 	name="alpacalert_cmd",
@@ -12,5 +12,5 @@ python_distribution(
 		name="alpacalert_cmd",
 		version="0.1.0",
 	),
-	generate_setup=True,
+	generate_setup=False,
 )
