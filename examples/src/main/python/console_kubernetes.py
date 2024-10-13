@@ -7,14 +7,14 @@ import kr8s
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
-from alpacalert.visualisers.console import VisualiserConsole, mk_symbols
+from alpacalert.visualisers.console import VisualiserConsole, mk_symbols, Show
 
 l = logging.getLogger(__name__)
 
 if __name__ == "__main__":
 	logging.basicConfig()
 
-	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"))
+	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=Show.ONLY_FAILING)
 	k8s = K8s(kr8s)
 
 	instrumentor = InstrumentorK8sRegistry(k8s)
