@@ -179,6 +179,7 @@ class SensorCluster(SensorKubernetes, System):
 	"""Maybe this is fake"""
 
 	cluster: K8sObjRef
+	namespace: str = kr8s.ALL
 
 	@property
 	def name(self) -> str:
@@ -190,7 +191,7 @@ class SensorCluster(SensorKubernetes, System):
 		for kind, sensor in self.k8s_instrumentors():
 			if "#" in kind:
 				continue
-			objs = self.k8s.get_all(kind)
+			objs = self.k8s.get_all(kind, namespace=self.namespace)
 			for obj in objs:
 				try:
 					scanners.append(sensor(self.registry, self.k8s, obj))
