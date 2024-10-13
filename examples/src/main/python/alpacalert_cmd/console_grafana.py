@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """A quick console application to check all your Grafana alerts."""
+
 import json
 
 import click
-
 from alpacalert.generic import ServiceBasic
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.grafana import GrafanaApi, RegistryGrafana
-from alpacalert.visualisers.console import VisualiserConsole, mk_symbols, Show
+from alpacalert.visualisers.console import Show, VisualiserConsole, mk_symbols
 from requests.sessions import Session
+
 
 @click.command
 @click.option("--cfg", default=json.dumps({"url": "https://play.grafana.org"}))

@@ -4,14 +4,28 @@
 import logging
 
 import click
-
 import kr8s
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
-from alpacalert.visualisers.console import VisualiserConsole, mk_symbols, Show
+from alpacalert.visualisers.console import Show, VisualiserConsole, mk_symbols
 
 l = logging.getLogger(__name__)
+
+
+def do_show_k8s(show, tgt):
+	logging.basicConfig()
+
+	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
+	k8s = K8s(kr8s)
+
+	instrumentor = InstrumentorK8sRegistry(k8s)
+	systems = instrumentor.instrument(**tgt)
+
+	my_cluster = ServiceBasic(name="cluster kind-kind", system=SystemAll(name="cluster kind-kind", scanners=systems))
+
+	click.echo(v.visualise(my_cluster))
+
 
 @click.command
 @click.option("--show", type=click.Choice([e.value for e in Show]), help="What to display", default=Show.ALL.value)
@@ -19,14 +33,14 @@ l = logging.getLogger(__name__)
 def k8s(show, namespace):
 	show = Show(show)
 
-	logging.basicConfig()
+	do_show_k8s(show, dict(kind=Kind("kubernetes.io", "Clusters"), cluster="kind-kind", namespace=namespace))
 
-	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
-	k8s = K8s(kr8s)
 
-	instrumentor = InstrumentorK8sRegistry(k8s)
-	systems = instrumentor.instrument(Kind("kubernetes.io", "Clusters"), cluster="kind-kind", namespace=namespace)
+@click.command
+@click.option("--namespace")
+@click.option("--kind")
+@click.option("--name")
+def k8s_obj(namespace, kind: str, name: str):
+	[obj] = kr8s.get(kind, name, namespace=namespace)
 
-	my_cluster = ServiceBasic(name="cluster kind-kind", system=SystemAll(name="cluster kind-kind", scanners=systems))
-
-	click.echo(v.visualise(my_cluster))
+	do_show_k8s(Show.ALL, {"kind": Kind("kubernetes.io", obj.kind), obj.singular: obj})
