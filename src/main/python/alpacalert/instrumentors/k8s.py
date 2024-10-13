@@ -1,7 +1,9 @@
 """Instrument all Kubernetes objects"""
 
 import json
+import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional, Type
 
@@ -10,6 +12,8 @@ import kr8s
 from alpacalert.generic import SensorConstant, SystemAll, SystemAny, status_all
 from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
+
+lc = logging.getLogger("alpacalert.cache")
 
 
 class StorageClass(kr8s.objects.APIObject):
@@ -45,35 +49,45 @@ class K8s:
 
 	kr8s: kr8s
 
-	_cache_get_all: dict[tuple[str, str] : Any] = field(default_factory=dict)
+	_cache_get_all: dict[tuple[str, str], dict[str, kr8s._objects.APIObject]] = field(default_factory=lambda: defaultdict(dict))
 
 	def exists(self, kind: str, namespace: str, name: str) -> bool:
 		"""Validate that a resource exists"""
-		resources = kr8s.get(kind, name, namespace=namespace)
-		return len(resources) > 0
+		return self.get(kind, namespace, name) is not None
+
+	def _add_to_cache(self, objs: list[kr8s._objects.APIObject]):
+		for e in objs:
+			self._cache_get_all[(e.kind, e.namespace)][e.name] = e
 
 	def get_all(self, kind: str, namespace: str = kr8s.ALL) -> list:
 		"""Get all Kubernetes objects of a kind"""
 		k = (kind, namespace)
 		if k in self._cache_get_all:
-			return self._cache_get_all[k]
+			lc.debug("cache hit %s", k)
+			return list(self._cache_get_all[k].values())
 		else:
+			lc.debug("cache miss %s", k)
 			v = self.kr8s.get(kind, namespace=namespace)
-			self._cache_get_all[k] = v
+			self._add_to_cache(v)
 			return v
 
 	def get(self, kind: str, namespace: str, name: str) -> Optional[kr8s.objects.APIObject]:
 		"""Get a single Kubernetes object"""
-		result = self.kr8s.get(kind, name, namespace=namespace)
-		if len(result) == 1:
-			return result[0]
-		elif len(result) == 0:
-			return None
+		k = (kind, namespace)
+		if k not in self._cache_get_all:
+			lc.debug("cache miss %s", k)
+			self.get_all(kind, namespace)
 		else:
-			raise InstrumentorError(f"Multiple resources found for {kind=} {namespace=} {name=}")
+			lc.debug("cache hit %s", k)
+
+		result = self._cache_get_all[(kind, namespace)].get(name, None)
+		return result
+		# raise InstrumentorError(f"Multiple resources found for {kind=} {namespace=} {name=}")
 
 	def children(self, kind: str, namespace: str, label_selector: dict) -> list[kr8s.objects.APIObject]:
 		"""Find child objects of a Kubernetes object by their label selector"""
+		k = (kind, namespace)
+		lc.debug("uncacheable %s", k)
 		return self.kr8s.get(kind, namespace=namespace, label_selector=label_selector)
 
 
@@ -262,7 +276,7 @@ class SensorConfigmaps(SensorKubernetes, Sensor):
 
 	def status(self) -> Status:
 		return Status(
-			state=State.from_bool(self.k8s.exists("configmap", self.configmap.namespace, self.configmap.name)),
+			state=State.from_bool(self.k8s.exists("ConfigMap", self.configmap.namespace, self.configmap.name)),
 		)
 
 	def children(self) -> list[Scanner]:
@@ -286,7 +300,7 @@ class SensorSecrets(SensorKubernetes, Sensor):
 
 	def status(self) -> Status:
 		return Status(
-			state=State.from_bool(self.k8s.exists("secret", self.secret.namespace, self.secret.name)),
+			state=State.from_bool(self.k8s.exists("Secret", self.secret.namespace, self.secret.name)),
 		)
 
 	@classmethod
@@ -385,7 +399,7 @@ class SensorPods(SensorKubernetes, System):
 
 		if "containerStatuses" in self.pod.status:
 			container_sensor = SystemAll(
-				name="containers", scanners=flatten(self.registry.instrument(k8skind("Pods#container"), container_status=e) for e in self.pod.status.containerStatuses)
+				name="containers", scanners=flatten(self.registry.instrument(k8skind("Pod#container"), container_status=e) for e in self.pod.status.containerStatuses)
 			)
 		else:
 			container_sensor = SensorConstant.failing(name="containers", messages=[])  # TODO: more meaningful recovery
@@ -394,7 +408,7 @@ class SensorPods(SensorKubernetes, System):
 			phase_sensor,
 			container_sensor,
 			SystemAll(
-				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pods#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.volumes])
+				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.volumes])
 			),
 		]
 		return scanners
@@ -443,7 +457,7 @@ class SensorPods(SensorKubernetes, System):
 
 		@classmethod
 		def registrations(cls) -> SensorKubernetes.Registrations:
-			return [("Pods#container", cls)]
+			return [("Pod#container", cls)]
 
 	@dataclass
 	class Volume(SensorKubernetes, System):
@@ -462,7 +476,7 @@ class SensorPods(SensorKubernetes, System):
 		def children(self) -> list[Scanner]:
 			"""Instrument volumes on a pod"""
 			if "configMap" in self.volume:
-				configmap = self.k8s.get("configmaps", self.pod.namespace, self.volume["configMap"]["name"])
+				configmap = self.k8s.get("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])
 				return [SystemAll(name="configmap", scanners=flatten([self.registry.instrument(k8skind("ConfigMap"), configmap=configmap)]))]
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
@@ -471,10 +485,7 @@ class SensorPods(SensorKubernetes, System):
 					SystemAll(
 						name="projected volume",
 						scanners=flatten(
-							[
-								self.registry.instrument(k8skind("Pods#volume"), pod=self.pod, volume_name=str(i), volume=v)
-								for i, v in enumerate(self.volume["projected"]["sources"])
-							]
+							[self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=str(i), volume=v) for i, v in enumerate(self.volume["projected"]["sources"])]
 						),
 					)
 				]
@@ -483,7 +494,7 @@ class SensorPods(SensorKubernetes, System):
 			elif "serviceAccountToken" in self.volume:
 				return [SensorConstant.passing("serviceAccountToken", [])]  # TODO: include more information on service account
 			elif "persistentVolumeClaim" in self.volume:
-				pvc = self.k8s.get("pvc", self.pod.namespace, self.volume["persistentVolumeClaim"]["claimName"])
+				pvc = self.k8s.get("PersistentVolumeClaim", self.pod.namespace, self.volume["persistentVolumeClaim"]["claimName"])
 				return self.registry.instrument(k8skind("PersistentVolumeClaim"), pvc=pvc)
 			else:
 				return [SensorConstant.passing(f"volume {self.volume_name} cannot be instrumented", [])]
@@ -492,12 +503,12 @@ class SensorPods(SensorKubernetes, System):
 
 		@classmethod
 		def registrations(cls) -> SensorKubernetes.Registrations:
-			return [("Pods#volume", cls)]
+			return [("Pod#volume", cls)]
 
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [
-			("Pods", cls),
+			("Pod", cls),
 			*cls.Container.registrations(),
 			*cls.Volume.registrations(),
 		]
@@ -530,8 +541,8 @@ class SensorReplicaSets(SensorKubernetes, System):
 				name="pods",
 				scanners=flatten(
 					[
-						self.registry.instrument(k8skind("Pods"), pod=e)
-						for e in self.k8s.children("pods", self.replicaset.namespace, label_selector=self.replicaset.spec.selector.matchLabels)
+						self.registry.instrument(k8skind("Pod"), pod=e)
+						for e in self.k8s.children("Pod", self.replicaset.namespace, label_selector=self.replicaset.spec.selector.matchLabels)
 					]
 				),
 			)  # TODO: need to filter ownerReferences too
@@ -568,7 +579,7 @@ class SensorDeployments(SensorKubernetes, System):
 			scanners=flatten(
 				[
 					self.registry.instrument(k8skind("ReplicaSet"), replicaset=e)
-					for e in self.k8s.children("replicasets", self.deployment.namespace, label_selector=self.deployment.spec.selector.matchLabels)
+					for e in self.k8s.children("ReplicaSet", self.deployment.namespace, label_selector=self.deployment.spec.selector.matchLabels)
 				]
 			),
 		)
@@ -600,8 +611,8 @@ class SensorDaemonset(SensorKubernetes, System):
 			name="pods",
 			scanners=flatten(
 				[
-					self.registry.instrument(k8skind("Pods"), pod=e)
-					for e in self.k8s.children("pods", self.daemonset.namespace, label_selector=self.daemonset.spec.selector.matchLabels)
+					self.registry.instrument(k8skind("Pod"), pod=e)
+					for e in self.k8s.children("Pod", self.daemonset.namespace, label_selector=self.daemonset.spec.selector.matchLabels)
 				]
 			),
 		)  # TODO: need to filter ownerReferences too
@@ -635,8 +646,8 @@ class SensorStatefulsets(SensorKubernetes):
 			name="pods",
 			scanners=flatten(
 				[
-					self.registry.instrument(k8skind("Pods"), pod=e)
-					for e in self.k8s.children("pods", self.statefulset.namespace, label_selector=self.statefulset.spec.selector.matchLabels)
+					self.registry.instrument(k8skind("Pod"), pod=e)
+					for e in self.k8s.children("Pod", self.statefulset.namespace, label_selector=self.statefulset.spec.selector.matchLabels)
 				]
 			),
 		)  # TODO: need to filter ownerReferences too
@@ -662,11 +673,14 @@ class SensorJob(SensorKubernetes, System):
 		return f"job {self.job.name}"
 
 	def children(self) -> list[Scanner]:
+		if "conditions" not in self.job.status:
+			print(self.job.name, self.job.status.keys())
+
 		status_sensors = evaluate_conditions({"Complete"}, set())(self.job.status.conditions)
 
-		pods = self.k8s.children("pods", self.job.namespace, label_selector=self.job.spec.selector.matchLabels)
+		pods = self.k8s.children("Pod", self.job.namespace, label_selector=self.job.spec.selector.matchLabels)
 		if pods:
-			pod_sensor = SystemAll(name="pods", scanners=flatten([self.registry.instrument(k8skind("Pods"), pod=e) for e in pods]))
+			pod_sensor = SystemAll(name="pods", scanners=flatten([self.registry.instrument(k8skind("Pod"), pod=e) for e in pods]))
 		else:
 			pod_sensor = SensorConstant.passing(name="pods", messages=[Log(message="No pods found", severity=Severity.INFO)])
 
@@ -696,11 +710,11 @@ class SensorServices(SensorKubernetes, System):
 	def children(self) -> list[Scanner]:
 		"""Instrument a service"""
 		if "selector" in self.service.spec:
-			endpoint_pods = self.k8s.children("pods", self.service.namespace, label_selector=self.service.spec.selector)
+			endpoint_pods = self.k8s.children("Pod", self.service.namespace, label_selector=self.service.spec.selector)
 			endpoint_sensors = [
 				SystemAny(
 					name="enpoints",
-					scanners=flatten([self.registry.instrument(k8skind("Pods"), pod=e) for e in endpoint_pods]),
+					scanners=flatten([self.registry.instrument(k8skind("Pod"), pod=e) for e in endpoint_pods]),
 				)
 			]
 		else:
@@ -731,7 +745,7 @@ class SensorIngresses(SensorKubernetes, System):
 			backend = self.path.backend
 			if "service" in backend:
 				# TODO: use children like normal?
-				service = self.k8s.get("services", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
+				service = self.k8s.get("Service", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
 				return SystemAll(name=service.name, scanners=self.registry.instrument(k8skind("Service"), service=service)).status()
 			elif "resource" in backend:
 				return Status(state=State.PASSING)  # TODO: resolve object references
@@ -741,7 +755,7 @@ class SensorIngresses(SensorKubernetes, System):
 		def children(self) -> list[Scanner]:
 			backend = self.path.backend
 			if "service" in backend:
-				service = self.k8s.get("services", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
+				service = self.k8s.get("Service", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
 				return flatten([self.registry.instrument(k8skind("Service"), service=service)])
 			else:
 				return []

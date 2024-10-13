@@ -14,8 +14,6 @@ l = logging.getLogger(__name__)
 
 
 def do_show_k8s(show, tgt):
-	logging.basicConfig()
-
 	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
 	k8s = K8s(kr8s)
 
