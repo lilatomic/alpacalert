@@ -270,7 +270,7 @@ class SensorConfigmaps(SensorKubernetes, Sensor):
 
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
-		return [("Configmap", cls)]
+		return [("ConfigMap", cls)]
 
 
 @dataclass
@@ -463,7 +463,7 @@ class SensorPods(SensorKubernetes, System):
 			"""Instrument volumes on a pod"""
 			if "configMap" in self.volume:
 				configmap = self.k8s.get("configmaps", self.pod.namespace, self.volume["configMap"]["name"])
-				return [SystemAll(name="configmap", scanners=flatten([self.registry.instrument(k8skind("Configmap"), configmap=configmap)]))]
+				return [SystemAll(name="configmap", scanners=flatten([self.registry.instrument(k8skind("ConfigMap"), configmap=configmap)]))]
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
 			elif "projected" in self.volume:
@@ -524,8 +524,8 @@ class SensorReplicaSets(SensorKubernetes, System):
 
 	def children(self) -> list[Scanner]:
 		"""Instrument a ReplicaSet."""
-		count_sensors = replica_statuses(self.replicaset.spec.replicas, {"replicas", "availableReplicas", "readyReplicas"}, self.replicaset.status)
 		if self.replicaset.spec.replicas:
+			count_sensors = replica_statuses(self.replicaset.spec.replicas, {"replicas", "availableReplicas", "readyReplicas"}, self.replicaset.status)
 			pod_sensors = SystemAll(
 				name="pods",
 				scanners=flatten(
@@ -536,6 +536,7 @@ class SensorReplicaSets(SensorKubernetes, System):
 				),
 			)  # TODO: need to filter ownerReferences too
 		else:
+			count_sensors = replica_statuses(self.replicaset.spec.replicas, {"replicas"}, self.replicaset.status)
 			pod_sensors = SensorConstant.passing("pods", [Log(message="replicaset requests no pods", severity=Severity.INFO)])
 
 		return [count_sensors, pod_sensors]
