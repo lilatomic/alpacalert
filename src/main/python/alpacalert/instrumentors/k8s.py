@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Optional, Type
+from typing import Any, Callable, Iterable, Optional, Type, Sequence
 
 import kr8s
 
@@ -124,12 +124,12 @@ class InstrumentorK8s(Instrumentor):
 class InstrumentorK8sRegistry(InstrumentorRegistry):
 	"""Registry of all Kubernetes Instrumentors."""
 
-	def __init__(self, k8s: K8s, sensors: dict[Kind, SensorKubernetes] | None = None):
+	def __init__(self, k8s: K8s, sensors: dict[Kind, type[SensorKubernetes]] | None = None):
 		super().__init__()
 		self.k8s = k8s
 
-		if not sensors:
-			sensors = [
+		if sensors is None:
+			_sensors = [
 				*SensorCluster.registrations(),
 				*SensorNode.registrations(),
 				*SensorConfigmaps.registrations(),
@@ -145,8 +145,10 @@ class InstrumentorK8sRegistry(InstrumentorRegistry):
 				*SensorServices.registrations(),
 				*SensorIngresses.registrations(),
 			]
+		else:
+			_sensors = sensors
 
-		for sensor in sensors:
+		for sensor in _sensors:
 			registration = k8skind(sensor[0])
 			self.register(registration, InstrumentorK8s(k8s, [registration], sensor[1]))
 
@@ -156,10 +158,10 @@ def condition_is(condition, passing_if: bool) -> State:
 	return State.from_bool(condition["status"].lower() == str(passing_if).lower())
 
 
-def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -> Callable[[list[dict]], list[Sensor]]:
+def evaluate_conditions(passing_if_true: set[str], passing_if_false: set[str]) -> Callable[[Sequence[dict]], Sequence[Sensor]]:
 	"""Evaluate "conditions" of a Kubernetes object"""
 
-	def evaluate_condition(conditions) -> list[Sensor]:
+	def evaluate_condition(conditions: Sequence[dict]) -> Sequence[Sensor]:
 		sensors = []
 		for condition in conditions:
 			condition_type = condition["type"]
@@ -252,7 +254,7 @@ class SensorNode(SensorKubernetes, System):
 		"""Name"""
 		return f"node {self.node.name}"
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		"""Instrument a Kubernetes node"""
 		return evaluate_conditions({"Ready"}, {"MemoryPressure", "DiskPressure", "PIDPressure"})(self.node.status.conditions)
 
@@ -707,7 +709,7 @@ class SensorServices(SensorKubernetes, System):
 		"""Name"""
 		return f"service {self.service.name}"
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		"""Instrument a service"""
 		if "selector" in self.service.spec:
 			endpoint_pods = self.k8s.children("Pod", self.service.namespace, label_selector=self.service.spec.selector)
@@ -746,6 +748,8 @@ class SensorIngresses(SensorKubernetes, System):
 			if "service" in backend:
 				# TODO: use children like normal?
 				service = self.k8s.get("Service", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
+				if service is None:
+					return Status(state=State.FAILING, messages= [Log(message=f"service {backend.service.name} exist", severity=Severity.ERROR)])
 				return SystemAll(name=service.name, scanners=self.registry.instrument(k8skind("Service"), service=service)).status()
 			elif "resource" in backend:
 				return Status(state=State.PASSING)  # TODO: resolve object references

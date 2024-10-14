@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Iterable, TypeVar
+from typing import ClassVar, Iterable, TypeVar, Sequence, Protocol
 
 import requests
 from cachetools import TTLCache, cached
@@ -13,7 +13,11 @@ from alpacalert.instrumentor import Instrumentor, InstrumentorError, Instrumento
 from alpacalert.instrumentors import grafana_models as m
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
 
-T = TypeVar("T")
+class HasName(Protocol):
+	name: str
+
+
+T = TypeVar('T', bound=HasName)
 
 
 @dataclass(frozen=True)
@@ -71,8 +75,8 @@ class GrafanaApi:
 
 	def get_rule(self, group: str, name: str) -> m.Rule:
 		"""Get an Alert rule"""
-		group = self.get_group(group)
-		rules_by_name = self.by_name(group.rules)
+		group_obj = self.get_group(group)
+		rules_by_name = self.by_name(group_obj.rules)
 
 		if name not in rules_by_name:
 			raise InstrumentorError(f"rule not found {group=}, {name=}")
@@ -116,7 +120,7 @@ class SensorAlert(Sensor):
 
 		return Status(state=state, messages=[Log(message=self.alert.state.value, severity=severity)])
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return []
 
 
@@ -169,7 +173,7 @@ class ScannerRule(System):
 
 		return Status(state=state, messages=[Log(message=self.rule.state.value, severity=severity)])
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.alerts
 
 
@@ -211,7 +215,7 @@ class ScannerGroup(System):
 
 	status = status_all
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.rules
 
 
@@ -254,7 +258,7 @@ class ScannerFolder(System):
 
 	status = status_all
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.groups
 
 
@@ -287,7 +291,7 @@ class ScannerGrafana(System):
 
 	status = status_all
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.groups
 
 

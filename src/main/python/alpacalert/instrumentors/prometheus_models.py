@@ -4,9 +4,9 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
-from typing_extensions import TypedDict
 
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 
 class State(str, Enum):

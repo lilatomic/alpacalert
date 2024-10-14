@@ -5,7 +5,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from pydantic import BaseModel
 
@@ -97,14 +97,14 @@ class Status(BaseModel):
 class Scanner(ABC):
 	"""Common interface for Sensors, Systems, and Services"""
 
-	name: str
+	name: str  # type: ignore
 
 	@abstractmethod
 	def status(self) -> Status:
 		"""The status of this scanner"""
 
 	@abstractmethod
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		"""Detailed statuses"""
 
 
