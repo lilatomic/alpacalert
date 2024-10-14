@@ -47,7 +47,7 @@ class K8sObjRef:
 class K8s:
 	"""Interface to Kubernetes"""
 
-	kr8s: kr8s
+	kr8s: kr8s.Api
 
 	_cache_get_all: dict[tuple[str, str], dict[str, kr8s._objects.APIObject]] = field(default_factory=lambda: defaultdict(dict))
 

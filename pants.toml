@@ -16,7 +16,7 @@ root_patterns = [
 	"src/main/python",
 	"src/it/python",
 	"src/it/resources",
-	"examples/src/main/python",
+	"src/examples/python",
 ]
 
 [python]
