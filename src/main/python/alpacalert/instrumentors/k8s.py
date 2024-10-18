@@ -156,6 +156,7 @@ class InstrumentorK8sRegistry(InstrumentorRegistry):
 				*SensorDeployments.registrations(),
 				*SensorDaemonset.registrations(),
 				*SensorStatefulsets.registrations(),
+				*SensorCronJob.registrations(),
 				*SensorJob.registrations(),
 				*SensorServices.registrations(),
 				*SensorIngresses.registrations(),
@@ -248,6 +249,7 @@ class SensorCluster(SensorKubernetes, System):
 			*SensorDaemonset.registrations(),
 			*SensorStatefulsets.registrations(),
 			*SensorJob.registrations(),
+			*SensorCronJob.registrations(),
 			*SensorServices.registrations(),
 			*SensorIngresses.registrations(),
 		]
@@ -690,9 +692,6 @@ class SensorJob(SensorKubernetes, System):
 		return f"job {self.job.name}"
 
 	def children(self) -> list[Scanner]:
-		if "conditions" not in self.job.status:
-			print(self.job.name, self.job.status.keys())
-
 		status_sensors = evaluate_conditions({"Complete"}, set())(self.job.status.conditions)
 
 		pods = self.k8s.children("Pod", self.job.namespace, label_selector=self.job.spec.selector.matchLabels)
@@ -708,6 +707,27 @@ class SensorJob(SensorKubernetes, System):
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Job", cls)]
+
+
+@dataclass
+class SensorCronJob(SensorKubernetes, System):
+
+	cronjob: kr8s.objects.CronJob
+
+	@property
+	def name(self) -> str:
+		"""Name"""
+		return f"cronjob {self.cronjob.name}"
+
+	def children(self) -> list[Scanner]:
+		jobs = self.k8s.owned("Job", self.cronjob.namespace, self.cronjob)
+		return [SystemAll(name="jobs", scanners=flatten(self.registry.instrument(k8skind("Job"), job=e) for e in jobs))]
+
+	status = status_all
+
+	@classmethod
+	def registrations(cls) -> SensorKubernetes.Registrations:
+		return [("CronJob", cls)]
 
 
 @dataclass
