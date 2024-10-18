@@ -35,6 +35,13 @@ jobs:
           named-caches-hash: ${{ hashFiles('devtools/python-default.lock') }}
 #          cache-lmdb-store: 'true'
 
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+      - name: provision cluster
+        run: |
+          pants run src/it/resources/deploy.py
+
       - name: Test
         run: |
           pants test ::
