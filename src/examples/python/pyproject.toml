@@ -1,0 +1,46 @@
+[project]
+name = "alpacalert_cmd"
+version = "0.1.0"
+description = "Command-line interaface examples for Alpacalert"
+readme = "README.md"
+
+license = { file = "LICENSE" }
+
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Topic :: Utilities",
+	"Topic :: Internet :: Log Analysis",
+]
+
+authors = [
+	{ name = "lilatomic" }
+]
+maintainers = [
+	{ name = "lilatomic" }
+]
+
+requires-python = ">=3.8, <4"
+
+dependencies = [
+	"click>=8.0.0",
+	"alpacalert>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lilatomic/alpacalert"
+Repository = "https://github.com/lilatomic/alpacalert.git"
+Documentation = "https://alpacalert.readthedocs.io/en/latest/"
+Changelog= "https://github.com/lilatomic/alpacalert/blob/main/docs/CHANGELOG.rst"
+Issues= "https://github.com/lilatomic/alpacalert/issues"
+
+[project.scripts]
+alpacalert = "alpacalert_cmd.__main__:entrypoint"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

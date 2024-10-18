@@ -1,0 +1,23 @@
+prometheus:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+    - prometheus.dev.lilatomic.ca
+
+grafana:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+    - grafana.dev.lilatomic.ca
+
+alertmanager:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+    - alertmanager.dev.lilatomic.ca
+
+thanos:
+  enabled: false

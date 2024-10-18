@@ -1,0 +1,4 @@
+mypy>=1.5.0
+types-PyYAML
+types-requests
+types-cachetools

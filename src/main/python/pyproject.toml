@@ -1,0 +1,46 @@
+[project]
+name = "alpacalert"
+version = "0.1.0"
+description = "Alpacalert is a monitoring tool which understands your infrastructure as interacting services"
+readme = "README.md"
+
+license = { file = "LICENSE" }
+
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Topic :: Utilities",
+	"Topic :: Internet :: Log Analysis",
+]
+
+authors = [
+	{ name = "lilatomic" }
+]
+maintainers = [
+	{ name = "lilatomic" }
+]
+
+requires-python = ">=3.8, <4"
+
+dependencies = [
+	"pydantic>=2.0",
+	"kr8s~=0.14.0",
+	"requests~=2.0",
+	"cachetools~=5.0",
+	"typing_extensions~=4.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/lilatomic/alpacalert"
+Repository = "https://github.com/lilatomic/alpacalert.git"
+Documentation = "https://alpacalert.readthedocs.io/en/latest/"
+Changelog= "https://github.com/lilatomic/alpacalert/blob/main/docs/CHANGELOG.rst"
+Issues= "https://github.com/lilatomic/alpacalert/issues"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
