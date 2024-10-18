@@ -87,8 +87,23 @@ class K8s:
 	def children(self, kind: str, namespace: str, label_selector: dict) -> list[kr8s.objects.APIObject]:
 		"""Find child objects of a Kubernetes object by their label selector"""
 		k = (kind, namespace)
-		lc.debug("uncacheable %s", k)
+		lc.debug("uncacheable label lookup %s", k)
 		return self.kr8s.get(kind, namespace=namespace, label_selector=label_selector)
+
+	@staticmethod
+	def _is_owner_ref(ref, owner: kr8s.objects.APIObject) -> bool:
+		return (
+			ref["kind"] == owner.kind
+			and ref["apiVersion"] == owner.version
+			and ref["name"] == owner.name
+		)
+
+	def owned(self, kind: str, namespace: str, owner: kr8s.objects.APIObject) -> list[kr8s.objects.APIObject]:
+		"""Find objects that are owned by the object"""
+		k = (kind, namespace)
+		lc.debug("cacheable owner lookup %s", k)
+		objs_of_type = self.get_all(kind, namespace)
+		return [e for e in objs_of_type if any(self._is_owner_ref(o, owner) for o in e.metadata.get("ownerReferences", []))]
 
 
 @dataclass
