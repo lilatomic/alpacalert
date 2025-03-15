@@ -3,6 +3,7 @@
 import operator
 from dataclasses import dataclass
 from functools import reduce
+from typing import Sequence
 
 from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
 
@@ -22,14 +23,14 @@ class SystemAny(System):
 	"""System that is PASSING if any of its Sensors are PASSING"""
 
 	name: str
-	scanners: list[Scanner]
+	scanners: Sequence[Scanner]
 
 	def status(self) -> Status:
 		statuses = [sensor.status() for sensor in self.scanners]
 		state = reduce(operator.or_, (status.state for status in statuses))
 		return Status(state=state)
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.scanners
 
 
@@ -47,14 +48,14 @@ class SystemAll(System):
 	"""System that is PASSING if all of its Sensors are PASSING"""
 
 	name: str
-	scanners: list[Scanner]
+	scanners: Sequence[Scanner]
 
 	def status(self) -> Status:
 		statuses = [sensor.status() for sensor in self.scanners]
 		state = reduce(operator.and_, (status.state for status in statuses))
 		return Status(state=state)
 
-	def children(self) -> list[Scanner]:
+	def children(self) -> Sequence[Scanner]:
 		return self.scanners
 
 

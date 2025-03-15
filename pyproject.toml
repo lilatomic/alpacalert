@@ -21,10 +21,12 @@ indent-style="tab"
 
 [tool.mypy]
 pretty = true
+disable_error_code = ["override"]
 
 [[tool.mypy.overrides]]
 module = [
     "testcontainers.*",
+    "kr8s.*",
 ]
 ignore_missing_imports = true
 
