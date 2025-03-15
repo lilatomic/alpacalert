@@ -3,6 +3,7 @@
 import logging
 
 import click
+
 from alpacalert_cmd import console_grafana, console_kubernetes
 
 

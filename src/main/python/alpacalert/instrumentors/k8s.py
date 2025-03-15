@@ -1,11 +1,10 @@
 """Instrument all Kubernetes objects"""
-
 import json
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Optional, Type, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence, Type
 
 import kr8s
 
@@ -784,7 +783,7 @@ class SensorIngresses(SensorKubernetes, System):
 				# TODO: use children like normal?
 				service = self.k8s.get("Service", self.namespace, backend.service.name)  # the service must exist in the same NS as the ingress
 				if service is None:
-					return Status(state=State.FAILING, messages= [Log(message=f"service {backend.service.name} exist", severity=Severity.ERROR)])
+					return Status(state=State.FAILING, messages=[Log(message=f"service {backend.service.name} exist", severity=Severity.ERROR)])
 				return SystemAll(name=service.name, scanners=self.registry.instrument(k8skind("Service"), service=service)).status()
 			elif "resource" in backend:
 				return Status(state=State.PASSING)  # TODO: resolve object references

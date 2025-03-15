@@ -1,5 +1,4 @@
-from functools import reduce
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from alpacalert.models import Scanner
 
@@ -30,7 +29,7 @@ def find_path(scanners: Sequence[Scanner], path: Sequence[str]) -> Sequence[Scan
 	Find a scanner by path
 	"""
 	children = scanners
-	tgts = None
+	tgts: Sequence[Scanner] = ()
 
 	for i, segment in enumerate(path):
 		try:
@@ -38,7 +37,6 @@ def find_path(scanners: Sequence[Scanner], path: Sequence[str]) -> Sequence[Scan
 		except NotFoundException as e:
 			raise NotFoundException(f"scanner not found in path {i=} {segment=} {path=}") from e
 
-		children = sum((tgt.children() for tgt in tgts), start=[])
+		children = sum((list(tgt.children()) for tgt in tgts), start=[])
 
 	return tgts
-

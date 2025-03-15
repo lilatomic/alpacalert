@@ -1,9 +1,8 @@
 import kr8s
 import pytest
-
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
-from alpacalert.instrumentors.k8s import K8s, InstrumentorK8sRegistry
+from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
 from alpacalert.models import Scanner, State
 from alpacalert.transform import find_path
 
@@ -53,6 +52,7 @@ class TestDeployment:
 		pods = find_path(k8s, _idx_into(["deployment ingress-nginx-controller", "replicasets", "*", "pods", "*"]))
 		assert len(pods) == 1
 		assert pods[0].name.startswith("pod ingress-nginx-controller")
+
 
 class TestCronjob:
 	def test_hierarchy(self, k8s):

@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Iterable, TypeVar, Sequence, Protocol
+from typing import ClassVar, Iterable, Protocol, Sequence, TypeVar
 
 import requests
 from cachetools import TTLCache, cached
+from typing_extensions import reveal_type
 
 from alpacalert.generic import status_all
 from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
 from alpacalert.instrumentors import grafana_models as m
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
+
 
 class HasName(Protocol):
 	name: str

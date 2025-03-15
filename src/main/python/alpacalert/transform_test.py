@@ -3,8 +3,8 @@ from typing import Sequence
 import pytest
 
 from alpacalert.generic import SensorConstant, SystemAll
-from alpacalert.models import Scanner, Sensor
-from alpacalert.transform import NotFoundException, find_scanners, find_path
+from alpacalert.models import Scanner
+from alpacalert.transform import NotFoundException, find_path, find_scanners
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ class TestFind:
 
 	def test_found(self, scanners: Sequence[Scanner]):
 		assert find_scanners(scanners, "S0") == [scanners[0]]
-		
+
 	def test_star(self, scanners: Sequence[Scanner]):
 		assert len(find_scanners(scanners, "*")) == len(scanners)
 
