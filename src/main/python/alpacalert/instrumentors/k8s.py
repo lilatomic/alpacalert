@@ -125,11 +125,11 @@ class InstrumentorK8s(Instrumentor):
 	"""Instrument an entire Kubernetes cluster"""
 
 	k8s: K8s
-	_registrations: Registrations
+	_registrations: Sequence[Kind]
 	k8s_sensor_cls: type[SensorKubernetes]
 
 	def registrations(self) -> Registrations:
-		return self._registrations
+		return tuple((e, self) for e in self._registrations)
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		return [self.k8s_sensor_cls(registry, k8s=self.k8s, **kwargs)]
@@ -138,10 +138,11 @@ class InstrumentorK8s(Instrumentor):
 class InstrumentorK8sRegistry(InstrumentorRegistry):
 	"""Registry of all Kubernetes Instrumentors."""
 
-	def __init__(self, k8s: K8s, sensors: dict[Kind, type[SensorKubernetes]] | None = None):
+	def __init__(self, k8s: K8s, sensors: SensorKubernetes.Registrations | None = None):
 		super().__init__()
 		self.k8s = k8s
 
+		_sensors: SensorKubernetes.Registrations
 		if sensors is None:
 			_sensors = [
 				*SensorCluster.registrations(),
@@ -164,8 +165,9 @@ class InstrumentorK8sRegistry(InstrumentorRegistry):
 			_sensors = sensors
 
 		for sensor in _sensors:
-			registration = k8skind(sensor[0])
-			self.register(registration, InstrumentorK8s(k8s, [registration], sensor[1]))
+			kind = k8skind(sensor[0])
+			instrumentor = InstrumentorK8s(k8s, (kind,), sensor[1])
+			self.register(kind, instrumentor)
 
 
 def condition_is(condition, passing_if: bool) -> State:
