@@ -40,7 +40,7 @@ class PrometheusMultiplexer:
 	query: str
 	groupby: tuple[str, ...] | None = None
 
-	@cached(cache=FIFOCache(maxsize=7), key=lambda s, t: t)
+	@cached(cache=FIFOCache(maxsize=7), key=lambda s, t: (s.query, t))
 	def get(self, time: datetime.datetime | None = None):
 		res = self.api.query_instant(self.query, time)
 
@@ -62,9 +62,9 @@ class PrometheusMultiplexer:
 @dataclass
 class SystemContainer(System):
 	name: str
-	cpu_utilisation: int | None
-	mem_utilisation: int | None
-	restarts: int | None
+	cpu_utilisation: float | None
+	mem_utilisation: float | None
+	restarts: float | None
 
 	def children(self):
 		"""Instrument a container"""
@@ -78,7 +78,8 @@ class SystemContainer(System):
 			status = Status(state=State.FAILING if self.mem_utilisation > 0.98 else State.PASSING, messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)])
 			sensors.append(SensorConstant(name="MEM utilisation", val=status))
 
-		status = Status(state=State.FAILING if self.restarts is not None and self.restarts > 1 else State.PASSING, messages=[Log(message=f"restarts: {self.restarts}", severity=Severity.INFO)])
+		restarts = self.restarts if self.restarts is not None else 0
+		status = Status(state=State.FAILING if restarts >= 1 else State.PASSING, messages=[Log(message=f"restarts: {restarts:.2f}", severity=Severity.INFO)])
 		sensors.append(SensorConstant(name="Restarts", val=status))
 
 		return sensors
