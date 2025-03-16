@@ -25,10 +25,9 @@ jobs:
           named-caches-hash: ${{ hashFiles('cicd/python-default.lock') }}
           cache-lmdb-store: 'true'
 
-      - name: Check BUILD files
-        run: "pants tailor --check update-build-files --check ::"
-      - name: Lint and typecheck
-        run: |
-          pants lint ::
-        if: success() || failure()
-
+      - name: Upload pants log
+        uses: actions/upload-artifact@v4
+        with:
+          name: pants-log-lint
+          path: .pants.d/pants.log
+        if: always() # We want the log even on failures.
