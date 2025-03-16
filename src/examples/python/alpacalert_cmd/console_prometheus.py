@@ -1,7 +1,11 @@
-import datetime
 
 import click
-from alpacalert.instrumentors.prometheus import PrometheusApi
+import kr8s
+
+from alpacalert.generic import ServiceBasic, SystemAll
+from alpacalert.instrumentor import InstrumentorRegistry, Kind
+from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s, k8skind
+from alpacalert.instrumentors.prometheus import PrometheusApi, RegistryPrometheus
 from alpacalert.visualisers.console import Show, VisualiserConsole, mk_symbols
 from requests import Session
 
@@ -16,9 +20,17 @@ def prometheus(show):
 
 	p = PrometheusApi(session=session, base_url="http://localhost:9090")
 
-	r = p.query_instant("container_memory_rss", datetime.datetime.now(datetime.UTC))
+	registry = InstrumentorRegistry()
+	registry.extend(InstrumentorK8sRegistry(K8s(kr8s)))
+	registry.extend(RegistryPrometheus(p))
 
-	print({e.metric["pod"]: e.value[1] for e in r.data.result})
+	tgt = dict(kind=Kind("kubernetes.io", "Clusters"), cluster="kind-kind", namespace="all")
+
+	systems = registry.instrument(**tgt)
+
+	my_cluster = ServiceBasic(name="cluster kind-kind", system=SystemAll(name="cluster kind-kind", scanners=systems))
+
+	click.echo(v.visualise(my_cluster))
 
 
 if __name__ == "__main__":

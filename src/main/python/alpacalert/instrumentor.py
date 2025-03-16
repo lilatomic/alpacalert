@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from itertools import chain
 from typing import Iterable
 
+from alpacalert.generic import SystemAll
 from alpacalert.models import Scanner
 
 
@@ -47,6 +49,22 @@ class Instrumentor(ABC):
 		"""Add scanners for an object"""
 
 
+@dataclass
+class InstrumentorComposite(Instrumentor):
+	"""An instrumentor that contains other instrumentors"""
+	registry: InstrumentorRegistry
+	kind: Kind
+	instrumentors: list[Instrumentor]
+
+	def registrations(self) -> Registrations:
+		return [(self.kind, self)]
+
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs):
+		return [SystemAll(
+			name=f"{kind.namespace}/{kind.name}", scanners=list(chain.from_iterable(instrumentor.instrument(registry, kind, **kwargs) for instrumentor in self.instrumentors))
+		)]
+
+
 class InstrumentorRegistry:
 	"""
 	Instrument an external entity by generating Sensors, Systems, or Services.
@@ -81,7 +99,14 @@ class InstrumentorRegistry:
 	def extend(self, other: InstrumentorRegistry):
 		"""Add all registrations from another instrumentor to this one."""
 		for kind, instrumentor in other.instrumentors.items():
-			self.register(kind, instrumentor)
+			if existing := self.instrumentors.get(kind):
+				if isinstance(existing, InstrumentorComposite):
+					n = [*existing.instrumentors, instrumentor]
+				else:
+					n = [existing, instrumentor]
+				self.register(kind, InstrumentorComposite(self, kind, n))
+			else:
+				self.register(kind, instrumentor)
 
 
 class InstrumentorError(Exception):
