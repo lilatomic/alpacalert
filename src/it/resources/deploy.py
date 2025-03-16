@@ -48,6 +48,7 @@ def prom():
 def nginx():
 	"""Deploy ingress-nginx"""
 	shell("kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml --namespace ingress-nginx")
+	shell("kubectl wait --for=condition=complete jobs/ingress-nginx-admission-create")
 	k8sfile("ingress_test.yml")
 
 
