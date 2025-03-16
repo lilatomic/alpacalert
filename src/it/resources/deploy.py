@@ -1,9 +1,27 @@
 """Deploy test resources"""
-
+import functools
 import os
 import subprocess
+import time
 
 
+def retry(f):
+	@functools.wraps(f)
+	def wrapper(*args, **kwargs):
+		i = 0
+		while True:
+			try:
+				i += 1
+				return f(*args, **kwargs)
+			except Exception:
+				if i > 3:
+					raise
+				else:
+					time.sleep(5)
+	return wrapper
+
+
+@retry
 def shell(cmd: str):
 	"""Run a shell command"""
 	subprocess.run(cmd, shell=True, check=True)
