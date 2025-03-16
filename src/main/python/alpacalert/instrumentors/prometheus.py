@@ -1,14 +1,14 @@
 import datetime
-import functools
 from dataclasses import dataclass
 from typing import Any
 
 import requests
-from cachetools import cached, FIFOCache
+from cachetools import FIFOCache, cached
 
 import alpacalert.instrumentors.prometheus_models as m
 from alpacalert.generic import SensorConstant, status_all
-from alpacalert.instrumentor import InstrumentorError
+from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
+from alpacalert.instrumentors.k8s import k8skind
 from alpacalert.models import Log, Scanner, Severity, State, Status, System
 
 
@@ -71,11 +71,11 @@ class SystemContainer(System):
 		sensors = []
 
 		if self.cpu_utilisation is not None:
-			status = Status(state=State.FAILING if self.cpu_utilisation > 1 else State.PASSING, messages=[Log(message=f"ratio of request: {self.cpu_utilisation:2f}", severity=Severity.INFO)])
+			status = Status(state=State.FAILING if self.cpu_utilisation > 0.98 else State.PASSING, messages=[Log(message=f"ratio of request: {self.cpu_utilisation:.2f}", severity=Severity.INFO)])
 			sensors.append(SensorConstant(name="CPU utilisation", val=status))
 
 		if self.mem_utilisation is not None:
-			status = Status(state=State.FAILING if self.mem_utilisation > 1 else State.PASSING, messages=[Log(message=f"ratio of request: {self.mem_utilisation:2f}", severity=Severity.INFO)])
+			status = Status(state=State.FAILING if self.mem_utilisation > 0.98 else State.PASSING, messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)])
 			sensors.append(SensorConstant(name="MEM utilisation", val=status))
 
 		status = Status(state=State.FAILING if self.restarts is not None and self.restarts > 1 else State.PASSING, messages=[Log(message=f"restarts: {self.restarts}", severity=Severity.INFO)])
@@ -89,19 +89,47 @@ class SystemContainer(System):
 time = None  # TODO: make this refresh
 
 
-class PrometheusContainerInstrumentor:
+class PrometheusContainerInstrumentor(Instrumentor):
 	def __init__(self, api: PrometheusApi):
 		self.api = api
 
-		self.q_cpu_usage = PrometheusMultiplexer(api,
-			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (namespace , pod, container ) / on (container , pod , namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))'
+		self.q_cpu_usage = PrometheusMultiplexer(
+			api,
+			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container , pod, namespace ) / on (container , pod , namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',
+			("container", "pod", "namespace"),
 		)
-		self.q_mem_usage = PrometheusMultiplexer(api, '(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container, pod, namespace) / on (container, pod, namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))')
-		self.q_restarts = PrometheusMultiplexer(api, 'sum(increase(kube_pod_container_status_restarts_total[1h]) > 0) by (container, pod, namespace)')
+		self.q_mem_usage = PrometheusMultiplexer(
+			api,
+			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container, pod, namespace) / on (container, pod, namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',
+			("container", "pod", "namespace"),)
+		self.q_restarts = PrometheusMultiplexer(
+			api,
+			'sum(increase(kube_pod_container_status_restarts_total[1h]) > 0) by (container, pod, namespace)',
+			("container", "pod", "namespace"),
+		)
 
-	def instrument(self, namespace, pod, container) -> list[Scanner]:
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
+		return [self.instrument_container(kwargs["namespace"], kwargs["pod_name"], kwargs["container_status"])]
+
+	def instrument_container(self, namespace, pod, container_status) -> Scanner:
+		container = container_status.name
 		cpu = self.q_cpu_usage.result((container, pod, namespace))
 		mem = self.q_mem_usage.result((container, pod, namespace))
 		restarts = self.q_restarts.result((container, pod, namespace))
 
-		return [SystemContainer(container, cpu, mem, restarts)]
+		return SystemContainer(f"Metrics for {container}", cpu, mem, restarts)
+
+	def registrations(self) -> Registrations:
+		return [
+			(k8skind("Pod#container"), self)
+		]
+
+
+class RegistryPrometheus(InstrumentorRegistry):
+	"""Registry for all Prometheus Instrumentors"""
+
+	def __init__(self, api: PrometheusApi, instrumentors: InstrumentorRegistry.Registry | None = None):
+		super().__init__(instrumentors)
+		self.api = api
+
+		self.register(k8skind("Pod#container"), PrometheusContainerInstrumentor(api))
