@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass, field
-from typing import ClassVar, Iterable, Protocol, Sequence, TypeVar
+from typing import ClassVar, Iterable, Protocol, Sequence, Type, TypeVar
 
 import requests
 from cachetools import TTLCache, cached
-from typing_extensions import reveal_type
 
 from alpacalert.generic import status_all
-from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
+from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind
 from alpacalert.instrumentors import grafana_models as m
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
 
@@ -85,8 +85,25 @@ class GrafanaApi:
 		return rules_by_name[name]
 
 
+class ScannerGrafanaType(Scanner, ABC):
+	kind: ClassVar[Kind]
+
+
 @dataclass
-class SensorAlert(Sensor):
+class InstrumentorGrafanaApi(Instrumentor, ABC):
+	api: GrafanaApi
+
+	sensor_class: ClassVar[Type[ScannerGrafanaType]]
+
+	def registrations(self) -> Iterable[tuple[Kind, InstrumentorGrafanaApi]]:
+		return [(self.sensor_class.kind, self)]
+
+	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
+		return [self.sensor_class(**kwargs)]
+
+
+@dataclass
+class SensorAlert(Sensor, ScannerGrafanaType):
 	"""Sensor for a Grafana alert"""
 
 	alert: m.Alert
@@ -127,22 +144,13 @@ class SensorAlert(Sensor):
 
 
 @dataclass
-class InstrumentorAlert(Instrumentor):
+class InstrumentorAlert(InstrumentorGrafanaApi):
 	"""Instrument a Grafana Alert"""
-
-	api: GrafanaApi
-
-	def registrations(self) -> Registrations:
-		return [
-			(SensorAlert.kind, self),
-		]
-
-	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
-		return [SensorAlert(**kwargs)]
+	sensor_class = SensorAlert
 
 
 @dataclass
-class ScannerRule(System):
+class ScannerRule(System, ScannerGrafanaType):
 	"""Scanner for a Grafana Alert rule"""
 
 	rule: m.Rule
@@ -180,15 +188,9 @@ class ScannerRule(System):
 
 
 @dataclass
-class InstrumentorAlertRule(Instrumentor):
+class InstrumentorAlertRule(InstrumentorGrafanaApi):
 	"""Instrument an Alert rule"""
-
-	api: GrafanaApi
-
-	def registrations(self) -> Registrations:
-		return [
-			(ScannerRule.kind, self),
-		]
+	sensor_class = ScannerRule
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		rule = kwargs["rule"]
@@ -202,7 +204,7 @@ class InstrumentorAlertRule(Instrumentor):
 
 
 @dataclass
-class ScannerGroup(System):
+class ScannerGroup(System, ScannerGrafanaType):
 	"""Scanner for a Grafana Alert group"""
 
 	group: m.Group
@@ -222,15 +224,9 @@ class ScannerGroup(System):
 
 
 @dataclass
-class InstrumentorAlertRuleGroup(Instrumentor):
+class InstrumentorAlertRuleGroup(InstrumentorGrafanaApi):
 	"""Instrument an Alert group"""
-
-	api: GrafanaApi
-
-	def registrations(self) -> Registrations:
-		return [
-			(ScannerGroup.kind, self),
-		]
+	sensor_class = ScannerGroup
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		group = kwargs["group"]
@@ -245,7 +241,7 @@ class InstrumentorAlertRuleGroup(Instrumentor):
 
 
 @dataclass
-class ScannerFolder(System):
+class ScannerFolder(System, ScannerGrafanaType):
 	"""Grafana Alert Folders aren't returned by the endpoint in a structure. They must be assembled from the labels"""
 
 	folder_name: str
@@ -265,15 +261,9 @@ class ScannerFolder(System):
 
 
 @dataclass
-class InstrumentorAlertFolder(Instrumentor):
+class InstrumentorAlertFolder(InstrumentorGrafanaApi):
 	"""Instrument a Grafana Alert folder"""
-
-	api: GrafanaApi
-
-	def registrations(self) -> Registrations:
-		return [
-			(ScannerFolder.kind, self),
-		]
+	sensor_class = ScannerFolder
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		folder_name = kwargs["folder"]
@@ -283,7 +273,7 @@ class InstrumentorAlertFolder(Instrumentor):
 
 
 @dataclass
-class ScannerGrafana(System):
+class ScannerGrafana(System, ScannerGrafanaType):
 	"""Scanner for a Grafana instance"""
 
 	name: str
@@ -298,15 +288,9 @@ class ScannerGrafana(System):
 
 
 @dataclass
-class InstrumentorGrafana(Instrumentor):
+class InstrumentorGrafana(InstrumentorGrafanaApi):
 	"""Instrument a Grafana instance"""
-
-	api: GrafanaApi
-
-	def registrations(self) -> Registrations:
-		return [
-			(ScannerGrafana.kind, self),
-		]
+	sensor_class = ScannerGrafana
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		name = kwargs.get("name", "Grafana")
@@ -322,7 +306,7 @@ class RegistryGrafana(InstrumentorRegistry):
 		super().__init__(instrumentors)
 		self.grafana = grafana
 
-		grafana_instrumentors = [
+		grafana_instrumentors: Sequence[Type[InstrumentorGrafanaApi]] = [
 			InstrumentorAlert,
 			InstrumentorAlertRule,
 			InstrumentorAlertRuleGroup,
@@ -330,6 +314,6 @@ class RegistryGrafana(InstrumentorRegistry):
 			InstrumentorGrafana,
 		]
 		for cls in grafana_instrumentors:
-			instrumentor = cls(grafana)
+			instrumentor = cls(api=grafana)
 			for kind, instrumentor in instrumentor.registrations():
 				self.register(kind, instrumentor)
