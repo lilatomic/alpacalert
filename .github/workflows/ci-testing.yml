@@ -1,0 +1,62 @@
+# tox git actions integration was taken from:
+# https://github.com/ymyzk/tox-gh-actions/tree/e11a29e2e5c73b6e48f5d4ee379f903476d013c0
+# Tests unittest pass, documentation builds, and package builds
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      matrix:
+        platform: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: pantsbuild/actions/init-pants@v5-scie-pants
+        with:
+          # v0 makes it easy to bust the cache if needed
+          # just increase the integer to start with a fresh cache
+          gha-cache-key: v1
+          named-caches-hash: ${{ hashFiles('devtools/python-default.lock') }}
+#          cache-lmdb-store: 'true'
+
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+        with:
+          config: src/it/resources/kind.yml
+
+      - name: provision cluster
+        run: |
+          pants run src/it/resources/deploy.py
+
+      - name: Test
+        run: |
+          pants test ::
+
+      - name: Upload test coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: dist/coverage/python/coverage.xml
+          fail_ci_if_error: true
+          verbose: true
+        if: success() || failure()
+
+      - name: Upload pants log
+        uses: actions/upload-artifact@v4
+        with:
+          name: pants-log-${{ matrix.python-version }}
+          path: .pants.d/pants.log
+        if: always() # We want the log even on failures.

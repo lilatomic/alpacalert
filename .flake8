@@ -1,0 +1,5 @@
+[flake8]
+ignore = W191,W503,E203,E741
+max-line-length = 240
+per-file-ignores =
+	**/conftest.py:F811

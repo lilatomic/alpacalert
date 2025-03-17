@@ -1,0 +1,17 @@
+[MAIN]
+fail-under=9.0
+
+[FORMAT]
+indent-string=\t
+max-line-length=240
+
+[MESSAGES CONTROL]
+disable=C0103,R1705,R1720,R0903,W1203
+# C0103 : warning on hanging indents are wrong for people who use different tab widths
+# R1705 : sometimes I use "else" for clarity, not just because it's strictly necessary
+# R1720 : sometimes I use "else" for clarity, not just because it's strictly necessary
+# R0903 : class as a store of state
+# W1203 : logging-fstring-interpolation
+
+[BASIC]
+no-docstring-rgx=^(?:_|test_)
