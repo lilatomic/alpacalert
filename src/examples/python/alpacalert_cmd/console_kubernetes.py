@@ -14,6 +14,7 @@ l = logging.getLogger(__name__)
 
 
 def do_show_k8s(show, tgt):
+	"""Run Alpacalert on a target in a Kubernetes cluster."""
 	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
 	k8s = K8s(kr8s)
 
@@ -29,16 +30,20 @@ def do_show_k8s(show, tgt):
 @click.option("--show", type=click.Choice([e.value for e in Show]), help="What to display", default=Show.ALL.value)
 @click.option("--namespace", type=click.STRING, help="The Kubernetes namespace", default="all")
 def k8s(show, namespace):
+	"""Run Alpacalert on an entire Kubernetes cluster (or a specific namespace)."""
 	show = Show(show)
 
 	do_show_k8s(show, dict(kind=Kind("kubernetes.io", "Clusters"), cluster="kind-kind", namespace=namespace))
 
 
 @click.command
+@click.option("--show", type=click.Choice([e.value for e in Show]), help="What to display", default=Show.ALL.value)
 @click.option("--namespace")
 @click.option("--kind")
 @click.option("--name")
-def k8s_obj(namespace, kind: str, name: str):
+def k8s_obj(show, namespace: str, kind: str, name: str):
+	"""Run Alpacalert on a specific resource in a Kubernetes cluster."""
+	show = Show(show)
 	[obj] = kr8s.get(kind, name, namespace=namespace)
 
-	do_show_k8s(Show.ALL, {"kind": Kind("kubernetes.io", obj.kind), obj.singular: obj})
+	do_show_k8s(show, {"kind": Kind("kubernetes.io", obj.kind), obj.singular: obj})

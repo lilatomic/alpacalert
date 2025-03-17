@@ -1,3 +1,5 @@
+# pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring,unused-argument
+
 from textwrap import dedent
 
 from alpacalert.generic import SensorConstant, ServiceBasic, SystemAll, SystemAny

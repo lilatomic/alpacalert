@@ -16,6 +16,7 @@ from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, Sys
 
 
 class HasName(Protocol):
+	"""Objects that have a name"""
 	name: str
 
 
@@ -30,7 +31,7 @@ class GrafanaObjRef:
 	p: dict[str, str] = field(default_factory=dict)
 
 
-# org: int | str # TODO
+# org: int | str # TODO: add support for organisations
 
 
 @dataclass
@@ -86,11 +87,13 @@ class GrafanaApi:
 
 
 class ScannerGrafanaType(Scanner, ABC):
+	"""Parent for grafana scanners"""
 	kind: ClassVar[Kind]
 
 
 @dataclass
 class InstrumentorGrafanaApi(Instrumentor, ABC):
+	"""Instrument a whole Grafana instance"""
 	api: GrafanaApi
 
 	sensor_class: ClassVar[Type[ScannerGrafanaType]]
@@ -193,13 +196,13 @@ class InstrumentorAlertRule(InstrumentorGrafanaApi):
 	sensor_class = ScannerRule
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
-		rule = kwargs["rule"]
-		if isinstance(rule, GrafanaObjRef):
-			rule = self.api.get_rule(rule.p["group"], rule.name)
-		elif isinstance(rule, m.Rule):
-			rule = rule
+		rule_arg = kwargs["rule"]
+		if isinstance(rule_arg, GrafanaObjRef):
+			rule = self.api.get_rule(rule_arg.p["group"], rule_arg.name)
+		elif isinstance(rule_arg, m.Rule):
+			rule = rule_arg
 		else:
-			raise InstrumentorError(f"cannot instantiate ScannerRule for unknown type {type(rule)}")
+			raise InstrumentorError(f"cannot instantiate ScannerRule for unknown type {type(rule_arg)}")
 		return [ScannerRule(rule, flatten([registry.instrument(SensorAlert.kind, alert=e) for e in rule.alerts]))]
 
 
@@ -229,13 +232,13 @@ class InstrumentorAlertRuleGroup(InstrumentorGrafanaApi):
 	sensor_class = ScannerGroup
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
-		group = kwargs["group"]
-		if isinstance(group, GrafanaObjRef):
-			group = self.api.get_group(group.name)
-		elif isinstance(group, m.Group):
-			group = group
+		group_arg = kwargs["group"]
+		if isinstance(group_arg, GrafanaObjRef):
+			group = self.api.get_group(group_arg.name)
+		elif isinstance(group_arg, m.Group):
+			group = group_arg
 		else:
-			raise InstrumentorError(f"cannot instantiate ScannerGroup for unknown type {type(group)}")
+			raise InstrumentorError(f"cannot instantiate ScannerGroup for unknown type {type(group_arg)}")
 
 		return [ScannerGroup(group, flatten(registry.instrument(ScannerRule.kind, rule=e) for e in group.rules))]
 

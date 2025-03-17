@@ -15,6 +15,7 @@ from requests.sessions import Session
 @click.option("--cfg", default=json.dumps({"url": "https://play.grafana.org"}))
 @click.option("--show", type=click.Choice([e.value for e in Show]), help="What to display", default=Show.ALL.value)
 def grafana(cfg, show):
+	"""Show alerts for a whole Grafana instance"""
 	show = Show(show)
 	v = VisualiserConsole(symbols=mk_symbols("✅", "❌", "❔"), show=show)
 

@@ -6,6 +6,7 @@ import subprocess
 
 
 async def retry(f, attempts=3, delay=5):
+	"""Run a function with retries"""
 	i = 0
 	while True:
 		try:
@@ -19,6 +20,7 @@ async def retry(f, attempts=3, delay=5):
 
 
 def with_retry(f):
+	"""Add retries to a function"""
 	@functools.wraps(f)
 	async def wrapper(*args, **kwargs):
 		await retry(lambda: f(*args, **kwargs))
@@ -27,7 +29,7 @@ def with_retry(f):
 
 
 async def raw_shell(cmd: str):
-	"""Run a shell command"""
+	"""Run a shell command. Retries are not provided, allowing customisation by the caller"""
 	proc = await asyncio.create_subprocess_shell(
 		cmd,
 		shell=True,
@@ -45,6 +47,7 @@ async def raw_shell(cmd: str):
 
 @with_retry
 async def shell(cmd: str):
+	"""Run a shell command with retries"""
 	await raw_shell(cmd)
 
 
@@ -66,6 +69,7 @@ async def wait_for_job(ns: str, name: str):
 
 
 async def wait_for_deployment(ns: str, name: str):
+	"""Wait for a deployment to have a ready pod"""
 	await retry(lambda: raw_shell(f"kubectl wait --for=jsonpath='{{.status.readyReplicas}}'=1 deployment/{name} -n {ns}"))
 
 
@@ -86,6 +90,7 @@ async def nginx():
 
 
 async def deploy_all():
+	"""Deploy all resources"""
 	# deploy ingress-nginx first so that we can wait for its validating webhook to come online
 	await asyncio.gather(
 		nginx(),

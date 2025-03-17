@@ -49,6 +49,7 @@ class Alert(BaseModel):
 	value: str
 
 	def name(self):
+		"""Resolve the name of this alert from its multiple models"""
 		if "__name__" in self.labels:
 			return self.labels["__name__"]
 		elif "alertname" in self.labels:

@@ -1,3 +1,5 @@
+# pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring,unused-argument
+
 import pytest
 
 from alpacalert.models import State
