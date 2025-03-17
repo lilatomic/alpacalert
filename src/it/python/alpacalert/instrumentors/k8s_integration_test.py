@@ -6,7 +6,7 @@ from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
 from alpacalert.models import Scanner, State
-from alpacalert.transform import find_path
+from alpacalert.transform import find_path, NotFoundException
 
 
 @pytest.fixture
@@ -59,5 +59,9 @@ class TestDeployment:
 class TestCronjob:
 	def test_hierarchy(self, k8s):
 		"""Tests that traversing the expected hierarchy can find a valid object"""
-		pods = find_path(k8s, _idx_into(["cronjob hello", "jobs", "*", "pods", "*"]))
-		assert len(pods) > 0  # there might be several from leftover jobs
+		try:
+			pods = find_path(k8s, _idx_into(["cronjob hello", "jobs", "*", "pods", "*"]))
+			assert len(pods) > 0  # there might be several from leftover jobs
+		except NotFoundException:
+			print(k8s)
+			raise
