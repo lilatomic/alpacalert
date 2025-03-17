@@ -94,19 +94,24 @@ class InstrumentorRegistry:
 
 	def register(self, kind: Kind, instrumentor: Instrumentor):
 		"""Register an Instrumentor for a Kind. The instrumentor will be called for every instance of the Kind."""
-		self.instrumentors[kind] = instrumentor
+		if existing := self.instrumentors.get(kind):
+			if isinstance(existing, InstrumentorComposite):
+				n = [*existing.instrumentors, instrumentor]
+			else:
+				n = [existing, instrumentor]
+			self.instrumentors[kind] = InstrumentorComposite(self, kind, n)
+		else:
+			self.instrumentors[kind] = instrumentor
+
+	def register_many(self, registrations: Registrations):
+		"""Register multiple Instrumentors."""
+		for kind, instrumentor in registrations:
+			self.register(kind, instrumentor)
 
 	def extend(self, other: InstrumentorRegistry):
 		"""Add all registrations from another instrumentor to this one."""
 		for kind, instrumentor in other.instrumentors.items():
-			if existing := self.instrumentors.get(kind):
-				if isinstance(existing, InstrumentorComposite):
-					n = [*existing.instrumentors, instrumentor]
-				else:
-					n = [existing, instrumentor]
-				self.register(kind, InstrumentorComposite(self, kind, n))
-			else:
-				self.register(kind, instrumentor)
+			self.register(kind, instrumentor)
 
 
 class InstrumentorError(Exception):
