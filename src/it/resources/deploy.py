@@ -40,7 +40,7 @@ async def raw_shell(cmd: str):
 	if stderr:
 		print(f'[stderr]\n{stderr.decode()}')
 	if proc.returncode != 0:
-		raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, stderr)
+		raise subprocess.CalledProcessError(proc.returncode if proc.returncode is not None else 0, cmd, stdout, stderr)
 
 
 @with_retry

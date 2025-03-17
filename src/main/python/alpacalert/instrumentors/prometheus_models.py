@@ -2,7 +2,7 @@
 # pylint: disable=C0115
 
 from datetime import datetime
-from enum import Enum, StrEnum, auto
+from enum import Enum, auto
 from typing import Generic, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel
@@ -62,7 +62,7 @@ class PromResponse(BaseModel, Generic[T]):
 	infos: Optional[str] = None
 
 
-class ResultType(StrEnum):
+class ResultType(str, Enum):
 	matrix = auto()
 	vector = auto()
 	scalar = auto()
@@ -70,10 +70,10 @@ class ResultType(StrEnum):
 
 
 class BoundaryRule(Enum):
-	open_left: 0
-	open_right: 1
-	open_both: 2
-	closed_both: 3
+	open_left = 0
+	open_right = 1
+	open_both = 2
+	closed_both = 3
 
 
 class Histogram(BaseModel):

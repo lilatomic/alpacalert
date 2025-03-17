@@ -23,13 +23,17 @@ class PrometheusApi:
 		"""Send a request to the Prometheus API"""
 		return self.session.send(self.session.prepare_request(req))
 
-	def query_instant(self, query: str, time: datetime.datetime = None, timeout: int = 30, limit=0) -> m.PromResponse[m.DataInstant[m.InstantVector]]:
+	def query_instant(self, query: str, time: datetime.datetime | None = None, timeout: int = 30, limit=0) -> m.PromResponse[m.DataInstant[m.InstantVectorValue]]:
 		"""Make an Instant query"""
-		res = self.call(requests.Request("POST", self.base_url + "/api/v1/query", params={"query": query, "time": time.isoformat() if time else None, "limit": limit, "timeout": timeout}))
+		res = self.call(requests.Request(
+			"POST",
+			self.base_url + "/api/v1/query",
+			params={"query": query, "time": time.isoformat() if time else None, "limit": limit, "timeout": timeout}),
+		)
 		if not res.ok:
 			raise InstrumentorError(res)
 
-		return m.PromResponse[m.DataInstant[m.InstantVector]].model_validate_json(res.content)
+		return m.PromResponse[m.DataInstant[m.InstantVectorValue]].model_validate_json(res.content)
 
 
 @dataclass
@@ -71,15 +75,23 @@ class SystemContainer(System):
 		sensors = []
 
 		if self.cpu_utilisation is not None:
-			status = Status(state=State.FAILING if self.cpu_utilisation > 0.98 else State.PASSING, messages=[Log(message=f"ratio of request: {self.cpu_utilisation:.2f}", severity=Severity.INFO)])
+			status = Status(
+				state=State.FAILING if self.cpu_utilisation > 0.98 else State.PASSING,
+				messages=[Log(message=f"ratio of request: {self.cpu_utilisation:.2f}", severity=Severity.INFO)],
+			)
 			sensors.append(SensorConstant(name="CPU utilisation", val=status))
 
 		if self.mem_utilisation is not None:
-			status = Status(state=State.FAILING if self.mem_utilisation > 0.98 else State.PASSING, messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)])
+			status = Status(
+				state=State.FAILING if self.mem_utilisation > 0.98 else State.PASSING,
+				messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)],)
 			sensors.append(SensorConstant(name="MEM utilisation", val=status))
 
 		restarts = self.restarts if self.restarts is not None else 0
-		status = Status(state=State.FAILING if restarts >= 1 else State.PASSING, messages=[Log(message=f"restarts: {restarts:.2f}", severity=Severity.INFO)])
+		status = Status(
+			state=State.FAILING if restarts >= 1 else State.PASSING,
+			messages=[Log(message=f"restarts: {restarts:.2f}", severity=Severity.INFO)],
+		)
 		sensors.append(SensorConstant(name="Restarts", val=status))
 
 		return sensors
@@ -96,12 +108,12 @@ class PrometheusContainerInstrumentor(Instrumentor):
 
 		self.q_cpu_usage = PrometheusMultiplexer(
 			api,
-			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container , pod, namespace ) / on (container , pod , namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',
+			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container , pod, namespace ) / on (container , pod , namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',  # noqa: E501
 			("container", "pod", "namespace"),
 		)
 		self.q_mem_usage = PrometheusMultiplexer(
 			api,
-			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container, pod, namespace) / on (container, pod, namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',
+			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container, pod, namespace) / on (container, pod, namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',  # noqa: E501
 			("container", "pod", "namespace"),)
 		self.q_restarts = PrometheusMultiplexer(
 			api,

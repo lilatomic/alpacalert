@@ -1,10 +1,9 @@
 
 import click
 import kr8s
-
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import InstrumentorRegistry, Kind
-from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s, k8skind
+from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
 from alpacalert.instrumentors.prometheus import PrometheusApi, RegistryPrometheus
 from alpacalert.visualisers.console import Show, VisualiserConsole, mk_symbols
 from requests import Session
