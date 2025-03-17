@@ -6,7 +6,7 @@ from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
 from alpacalert.models import Scanner, State
-from alpacalert.transform import find_path, NotFoundException
+from alpacalert.transform import NotFoundException, find_path
 
 
 @pytest.fixture

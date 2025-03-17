@@ -73,6 +73,11 @@ async def wait_for_deployment(ns: str, name: str):
 	await retry(lambda: raw_shell(f"kubectl wait --for=jsonpath='{{.status.readyReplicas}}'=1 deployment/{name} -n {ns}"))
 
 
+async def wait_for_cronjob(ns: str, name: str):
+	"""Wait for a cron job to have at least 1 execution"""
+	await retry(lambda: raw_shell(f"kubectl wait --for=jsonpath='{{.status.lastScheduleTime}}' cronjob/{name} -n {ns}"), attempts=100, delay=1)
+
+
 async def prom():
 	"""Deploy kube-prometheus"""
 	await shell("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts")
@@ -99,6 +104,9 @@ async def deploy_all():
 		k8sfile("names.yml"),
 		prom(),
 		k8sfile("k8s_objects.yml"),
+	)
+	await asyncio.gather(
+		wait_for_cronjob("aa-cronjob", "hello")
 	)
 
 
