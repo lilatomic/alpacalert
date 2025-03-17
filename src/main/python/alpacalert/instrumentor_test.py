@@ -70,6 +70,19 @@ class TestRegistryComposite:
 		r.register_many(ib.registrations())
 
 		assert r.instrumentors[kind1] == ib
-		rb = r.instrumentors[kind0]
-		assert isinstance(rb, InstrumentorComposite)
-		assert rb.instrumentors == [i0, ib]
+		result = r.instrumentors[kind0]
+		assert isinstance(result, InstrumentorComposite)
+		assert result.instrumentors == [i0, ib]
+
+	def test_nested_composite(self):
+		r = InstrumentorRegistry()
+		ia = Instrumentor0()
+		r.register_many(ia.registrations())
+		ib = Instrumentor0()
+		r.register_many(ib.registrations())
+		ic = Instrumentor0()
+		r.register_many(ic.registrations())
+
+		result = r.instrumentors[kind0]
+		assert isinstance(result, InstrumentorComposite)
+		assert result.instrumentors == [ia, ib, ic]
