@@ -7,3 +7,5 @@ python_requirements(
     name="requirements_test",
     source="requirements_test.txt",
 )
+
+files(name="README.md", sources=["README.md"])

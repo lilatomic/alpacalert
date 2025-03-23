@@ -8,7 +8,6 @@ license = { file = "LICENSE" }
 
 classifiers = [
 	"Development Status :: 3 - Alpha",
-	"Programming Language :: Python :: 3.9",
 	"Programming Language :: Python :: 3.10",
 	"Programming Language :: Python :: 3.11",
 	"Programming Language :: Python :: 3.12",
@@ -24,7 +23,7 @@ maintainers = [
 	{ name = "lilatomic" }
 ]
 
-requires-python = ">=3.8, <4"
+requires-python = ">=3.10, <4"
 
 dependencies = [
 	"click>=8.0.0",
@@ -35,7 +34,7 @@ dependencies = [
 Homepage = "https://github.com/lilatomic/alpacalert"
 Repository = "https://github.com/lilatomic/alpacalert.git"
 Documentation = "https://alpacalert.readthedocs.io/en/latest/"
-Changelog= "https://github.com/lilatomic/alpacalert/blob/main/docs/CHANGELOG.rst"
+Changelog= "https://github.com/lilatomic/alpacalert/blob/main/src/examples/python/changelog.md"
 Issues= "https://github.com/lilatomic/alpacalert/issues"
 
 [project.scripts]

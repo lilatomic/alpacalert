@@ -6,11 +6,14 @@ python_distribution(
 	name="alpacalert_cmd",
 	dependencies=[
 		":pyproject",
+		":README.md",
 		"./alpacalert_cmd:src",
 	],
 	provides=python_artifact(
 		name="alpacalert_cmd",
-		version="0.1.0",
+		version="0.1.1",
 	),
 	generate_setup=False,
 )
+
+files(name="README.md", sources=["README.md"])
