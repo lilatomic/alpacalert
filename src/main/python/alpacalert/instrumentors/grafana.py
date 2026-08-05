@@ -17,10 +17,11 @@ from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, Sys
 
 class HasName(Protocol):
 	"""Objects that have a name"""
+
 	name: str
 
 
-T = TypeVar('T', bound=HasName)
+T = TypeVar("T", bound=HasName)
 
 
 @dataclass(frozen=True)
@@ -88,12 +89,14 @@ class GrafanaApi:
 
 class ScannerGrafanaType(Scanner, ABC):
 	"""Parent for grafana scanners"""
+
 	kind: ClassVar[Kind]
 
 
 @dataclass
 class InstrumentorGrafanaApi(Instrumentor, ABC):
 	"""Instrument a whole Grafana instance"""
+
 	api: GrafanaApi
 
 	sensor_class: ClassVar[Type[ScannerGrafanaType]]
@@ -149,6 +152,7 @@ class SensorAlert(Sensor, ScannerGrafanaType):
 @dataclass
 class InstrumentorAlert(InstrumentorGrafanaApi):
 	"""Instrument a Grafana Alert"""
+
 	sensor_class = SensorAlert
 
 
@@ -193,6 +197,7 @@ class ScannerRule(System, ScannerGrafanaType):
 @dataclass
 class InstrumentorAlertRule(InstrumentorGrafanaApi):
 	"""Instrument an Alert rule"""
+
 	sensor_class = ScannerRule
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
@@ -229,6 +234,7 @@ class ScannerGroup(System, ScannerGrafanaType):
 @dataclass
 class InstrumentorAlertRuleGroup(InstrumentorGrafanaApi):
 	"""Instrument an Alert group"""
+
 	sensor_class = ScannerGroup
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
@@ -266,6 +272,7 @@ class ScannerFolder(System, ScannerGrafanaType):
 @dataclass
 class InstrumentorAlertFolder(InstrumentorGrafanaApi):
 	"""Instrument a Grafana Alert folder"""
+
 	sensor_class = ScannerFolder
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
@@ -293,6 +300,7 @@ class ScannerGrafana(System, ScannerGrafanaType):
 @dataclass
 class InstrumentorGrafana(InstrumentorGrafanaApi):
 	"""Instrument a Grafana instance"""
+
 	sensor_class = ScannerGrafana
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:

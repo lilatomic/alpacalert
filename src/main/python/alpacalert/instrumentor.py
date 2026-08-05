@@ -52,6 +52,7 @@ class Instrumentor(ABC):
 @dataclass
 class InstrumentorComposite(Instrumentor):
 	"""An instrumentor that contains other instrumentors"""
+
 	registry: InstrumentorRegistry
 	kind: Kind
 	instrumentors: list[Instrumentor]
@@ -60,9 +61,11 @@ class InstrumentorComposite(Instrumentor):
 		return [(self.kind, self)]
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs):
-		return [SystemAll(
-			name=f"{kind.namespace}/{kind.name}", scanners=list(chain.from_iterable(instrumentor.instrument(registry, kind, **kwargs) for instrumentor in self.instrumentors))
-		)]
+		return [
+			SystemAll(
+				name=f"{kind.namespace}/{kind.name}", scanners=list(chain.from_iterable(instrumentor.instrument(registry, kind, **kwargs) for instrumentor in self.instrumentors))
+			)
+		]
 
 
 class InstrumentorRegistry:

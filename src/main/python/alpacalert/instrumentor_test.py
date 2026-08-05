@@ -12,7 +12,6 @@ s1 = SensorConstant.passing("s1", [])
 
 
 class Instrumentor0(Instrumentor):
-
 	def registrations(self) -> Registrations:
 		return [(kind0, self)]
 
@@ -52,6 +51,7 @@ class TestRegistry:
 
 class TestRegistryComposite:
 	"""Test that registries use composite instrumentors"""
+
 	def test_nonoverlapping(self):
 		r = InstrumentorRegistry()
 		i0 = Instrumentor0()

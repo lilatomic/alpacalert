@@ -25,10 +25,8 @@ class PrometheusApi:
 
 	def query_instant(self, query: str, time: datetime.datetime | None = None, timeout: int = 30, limit=0) -> m.PromResponse[m.DataInstant[m.InstantVectorValue]]:
 		"""Make an Instant query"""
-		res = self.call(requests.Request(
-			"POST",
-			self.base_url + "/api/v1/query",
-			params={"query": query, "time": time.isoformat() if time else None, "limit": limit, "timeout": timeout}),
+		res = self.call(
+			requests.Request("POST", self.base_url + "/api/v1/query", params={"query": query, "time": time.isoformat() if time else None, "limit": limit, "timeout": timeout}),
 		)
 		if not res.ok:
 			raise InstrumentorError(res)
@@ -84,7 +82,8 @@ class SystemContainer(System):
 		if self.mem_utilisation is not None:
 			status = Status(
 				state=State.FAILING if self.mem_utilisation > 0.98 else State.PASSING,
-				messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)],)
+				messages=[Log(message=f"ratio of request: {self.mem_utilisation:.2f}", severity=Severity.INFO)],
+			)
 			sensors.append(SensorConstant(name="MEM utilisation", val=status))
 
 		restarts = self.restarts if self.restarts is not None else 0
@@ -114,10 +113,11 @@ class PrometheusContainerInstrumentor(Instrumentor):
 		self.q_mem_usage = PrometheusMultiplexer(
 			api,
 			'(sum (rate (container_cpu_usage_seconds_total {} [5m])) by (container, pod, namespace) / on (container, pod, namespace) ((kube_pod_container_resource_limits {resource="cpu"} >0)*300))',  # noqa: E501
-			("container", "pod", "namespace"),)
+			("container", "pod", "namespace"),
+		)
 		self.q_restarts = PrometheusMultiplexer(
 			api,
-			'sum(increase(kube_pod_container_status_restarts_total[1h]) > 0) by (container, pod, namespace)',
+			"sum(increase(kube_pod_container_status_restarts_total[1h]) > 0) by (container, pod, namespace)",
 			("container", "pod", "namespace"),
 		)
 
@@ -133,9 +133,7 @@ class PrometheusContainerInstrumentor(Instrumentor):
 		return SystemContainer(f"Metrics for {container}", cpu, mem, restarts)
 
 	def registrations(self) -> Registrations:
-		return [
-			(k8skind("Pod#container"), self)
-		]
+		return [(k8skind("Pod#container"), self)]
 
 
 class RegistryPrometheus(InstrumentorRegistry):

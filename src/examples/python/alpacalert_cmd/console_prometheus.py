@@ -1,4 +1,3 @@
-
 import click
 import kr8s
 from alpacalert.generic import ServiceBasic, SystemAll

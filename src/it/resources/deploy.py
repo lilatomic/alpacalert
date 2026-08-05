@@ -1,4 +1,5 @@
 """Deploy test resources"""
+
 import asyncio
 import functools
 import os
@@ -21,6 +22,7 @@ async def retry(f, attempts=3, delay=5):
 
 def with_retry(f):
 	"""Add retries to a function"""
+
 	@functools.wraps(f)
 	async def wrapper(*args, **kwargs):
 		await retry(lambda: f(*args, **kwargs))
@@ -38,9 +40,9 @@ async def raw_shell(cmd: str):
 	)
 	stdout, stderr = await proc.communicate()
 	if stdout:
-		print(f'[stdout]\n{stdout.decode()}')
+		print(f"[stdout]\n{stdout.decode()}")
 	if stderr:
-		print(f'[stderr]\n{stderr.decode()}')
+		print(f"[stderr]\n{stderr.decode()}")
 	if proc.returncode != 0:
 		raise subprocess.CalledProcessError(proc.returncode if proc.returncode is not None else 0, cmd, stdout, stderr)
 
@@ -105,9 +107,7 @@ async def deploy_all():
 		prom(),
 		k8sfile("k8s_objects.yml"),
 	)
-	await asyncio.gather(
-		wait_for_cronjob("aa-cronjob", "hello")
-	)
+	await asyncio.gather(wait_for_cronjob("aa-cronjob", "hello"))
 
 
 if __name__ == "__main__":

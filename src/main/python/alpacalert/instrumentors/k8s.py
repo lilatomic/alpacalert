@@ -1,4 +1,5 @@
 """Instrument all Kubernetes objects"""
+
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -423,7 +424,7 @@ class SensorPods(SensorKubernetes, System):
 				scanners=flatten(
 					self.registry.instrument(k8skind("Pod#container"), namespace=self.pod.namespace, pod_name=self.pod.name, container_status=e)
 					for e in self.pod.status.containerStatuses
-				)
+				),
 			)
 		else:
 			container_sensor = SensorConstant.failing(name="containers", messages=[])  # TODO: more meaningful recovery
