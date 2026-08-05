@@ -38,19 +38,24 @@ class VisualiserConsole(Visualiser):
 		return f"{indent_s}- {log.severity.name}: {log.message}"
 
 	def _visualise_scanner(self, scanner: Scanner, indent: int) -> list[str]:
+		# TOOD: Doesn't honor status if fetching children fails
 		indent_s = "\t" * indent
 		try:
 			status = scanner.status()
+
+			if self.show == Show.ONLY_FAILING and status.state == State.PASSING:
+				return []
+
+			children = [self._visualise_scanner(e, indent + 1) for e in scanner.children()]
+
 		except:  # noqa: E722
 			ei = {"name": scanner.name, "type": type(scanner).__name__, "children": [str(e) for e in scanner.children()]}
 			message = f"Unable to get status for {json.dumps(ei)}"
 			l.error(message, exc_info=True)
 			status = Status(state=State.UNKNOWN, messages=[Log(message=message, severity=Severity.ERROR)])
-		if self.show == Show.ONLY_FAILING and status.state == State.PASSING:
-			return []
+			children = []
 
 		this = f"{indent_s}{self.symbols[status.state]} : {scanner.name}"
 		logs = [self._visualise_log(log, indent) for log in status.messages]
-		children = [self._visualise_scanner(e, indent + 1) for e in scanner.children()]
 
 		return [this, *logs, *itertools.chain.from_iterable(children)]

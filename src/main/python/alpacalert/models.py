@@ -94,6 +94,11 @@ class Status(BaseModel):
 	messages: list[Log] = []
 
 
+def failed_discovery(e: Exception) -> Status:
+	"""The status of a scanner that failed to discover"""
+	return Status(state=State.FAILING, messages=[Log(severity=Severity.ERROR, message=str(e))])
+
+
 class Scanner(ABC):
 	"""Common interface for Sensors, Systems, and Services"""
 
