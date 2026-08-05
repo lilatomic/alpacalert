@@ -13,8 +13,7 @@ class ScannerError(Exception):
 
 
 def status_any(self):
-	statuses = [sensor.status() for sensor in self.children()]
-	state = reduce(operator.or_, (status.state for status in statuses))
+	state = reduce(operator.or_, (status.state for status in self.child_statuses()))
 	return Status(state=state)
 
 
@@ -26,8 +25,7 @@ class SystemAny(System):
 	scanners: Sequence[Scanner]
 
 	def status(self) -> Status:
-		statuses = [sensor.status() for sensor in self.scanners]
-		state = reduce(operator.or_, (status.state for status in statuses))
+		state = reduce(operator.or_, (status.state for status in self.child_statuses()))
 		return Status(state=state)
 
 	def children(self) -> Sequence[Scanner]:
@@ -36,8 +34,7 @@ class SystemAny(System):
 
 def status_all(self):
 	try:
-		statuses = [sensor.status() for sensor in self.children()]
-		state = reduce(operator.and_, (status.state for status in statuses))
+		state = reduce(operator.and_, (status.state for status in self.child_statuses()))
 		return Status(state=state)
 	except Exception as e:
 		raise ScannerError(f"error instrumenting {type(self)}") from e
@@ -51,8 +48,7 @@ class SystemAll(System):
 	scanners: Sequence[Scanner]
 
 	def status(self) -> Status:
-		statuses = [sensor.status() for sensor in self.scanners]
-		state = reduce(operator.and_, (status.state for status in statuses))
+		state = reduce(operator.and_, (status.state for status in self.child_statuses()))
 		return Status(state=state)
 
 	def children(self) -> Sequence[Scanner]:

@@ -107,6 +107,17 @@ class Scanner(ABC):
 	def children(self) -> Sequence[Scanner]:
 		"""Detailed statuses"""
 
+	def child_statuses(self) -> list[Status]:
+		"""The statuses of this scanner's children"""
+		statuses = []
+		for child in self.children():
+			try:
+				statuses.append(child.status())
+			except Exception as e:
+				statuses.append(failed_discovery(e))
+
+		return statuses
+
 
 class Sensor(Scanner, ABC):
 	"""
