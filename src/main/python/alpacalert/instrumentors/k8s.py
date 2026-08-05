@@ -355,9 +355,7 @@ class SensorStorageclass(SensorKubernetes, Sensor):
 		return f"storageclass {self.storageclass.name} exists"
 
 	def status(self) -> Status:
-		return Status(
-			state=State.from_bool(self.k8s.exists("StorageClasses", self.storageclass.namespace, self.storageclass.name)),
-		)
+		return Status(state=State.from_bool(self.k8s.exists("StorageClass", self.storageclass.namespace, self.storageclass.name)))
 
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
