@@ -97,3 +97,21 @@ class SensorConstant(Sensor):
 		"""Helper for passing sensors"""
 
 		return cls(name=name, val=Status(state=State.PASSING, messages=messages))
+
+
+@dataclass
+class SystemOptional(System):
+	"""
+	An Service that relies on a single System, but does not require that system to be operational.
+
+	This is useful for modeling optional dependencies.
+	"""
+
+	name: str
+	system: System
+
+	def status(self) -> Status:
+		return Status(state=State.PASSING)
+
+	def children(self) -> list[Scanner]:
+		return [self.system]
