@@ -9,7 +9,7 @@ from typing import Any, Callable, Iterable, Optional, Sequence, Type
 
 import kr8s
 
-from alpacalert.generic import SensorConstant, SystemAll, SystemAny, status_all
+from alpacalert.generic import SensorConstant, SystemAll, SystemAny, SystemOptional, status_all
 from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
 
@@ -46,6 +46,12 @@ class K8sObjRef:
 @dataclass
 class K8s:
 	"""Interface to Kubernetes"""
+
+	def __str__(self):
+		return f"K8s(context={self.kr8s.api().auth.kubeconfig.current_context})"
+
+	def __repr__(self):
+		return str(self)
 
 	kr8s: kr8s.Api
 
@@ -92,11 +98,7 @@ class K8s:
 
 	@staticmethod
 	def _is_owner_ref(ref, owner: kr8s.objects.APIObject) -> bool:
-		return (
-			ref["kind"] == owner.kind
-			and ref["apiVersion"] == owner.version
-			and ref["name"] == owner.name
-		)
+		return ref["kind"] == owner.kind and ref["apiVersion"] == owner.version and ref["name"] == owner.name
 
 	def owned(self, kind: str, namespace: str, owner: kr8s.objects.APIObject) -> list[kr8s.objects.APIObject]:
 		"""Find objects that are owned by the object"""
@@ -120,6 +122,9 @@ class SensorKubernetes(Scanner, ABC):
 	def registrations(cls) -> Registrations:
 		"""The Instrumentors that should be added for each Kind"""
 
+	def __str__(self):
+		return f"{self.__class__.__name__}(name={self.name})"
+
 
 @dataclass
 class InstrumentorK8s(Instrumentor):
@@ -134,6 +139,9 @@ class InstrumentorK8s(Instrumentor):
 
 	def instrument(self, registry: InstrumentorRegistry, kind: Kind, **kwargs) -> list[Scanner]:
 		return [self.k8s_sensor_cls(registry, k8s=self.k8s, **kwargs)]
+
+	def __str__(self):
+		return f"K8sInstrumentor(k8s={self.k8s})"
 
 
 class InstrumentorK8sRegistry(InstrumentorRegistry):
@@ -169,6 +177,9 @@ class InstrumentorK8sRegistry(InstrumentorRegistry):
 			kind = k8skind(sensor[0])
 			instrumentor = InstrumentorK8s(k8s, (kind,), sensor[1])
 			self.register(kind, instrumentor)
+
+	def __str__(self):
+		return f"K8sInstrumentor(k8s={self.k8s}, instrumentor_count={len(self.instrumentors)})"
 
 
 def condition_is(condition, passing_if: bool) -> State:
@@ -502,9 +513,19 @@ class SensorPods(SensorKubernetes, System):
 		# pylint: disable=too-many-return-statements
 		def children(self) -> list[Scanner]:
 			"""Instrument volumes on a pod"""
+
+			def _optional_volume(s: Scanner, optional: bool) -> list[Scanner]:
+				if optional:
+					return [SystemOptional(name="optional", system=s)]
+				else:
+					return [s]
+
+			# TODO: volume from secret
+
 			if "configMap" in self.volume:
 				configmap = self.k8s.get("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])
-				return [SystemAll(name="configmap", scanners=flatten([self.registry.instrument(k8skind("ConfigMap"), configmap=configmap)]))]
+				sensor = SystemAll(name="configmap", scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=configmap))]))
+				return _optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
 			elif "projected" in self.volume:
@@ -719,7 +740,6 @@ class SensorJob(SensorKubernetes, System):
 
 @dataclass
 class SensorCronJob(SensorKubernetes, System):
-
 	cronjob: kr8s.objects.CronJob
 
 	@property
