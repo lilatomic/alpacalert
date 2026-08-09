@@ -9,7 +9,6 @@ from alpacalert.models import Scanner, State
 from alpacalert.transform import NotFoundException, find_path
 
 
-
 @pytest.fixture
 def k8s() -> list[Scanner]:
 	k8s = K8s(kr8s)

@@ -145,9 +145,6 @@ class SensorAlert(Sensor, ScannerGrafanaType):
 
 		return Status(state=state, messages=[Log(message=self.alert.state.value, severity=severity)])
 
-	def children(self) -> Sequence[Scanner]:
-		return []
-
 
 @dataclass
 class InstrumentorAlert(InstrumentorGrafanaApi):

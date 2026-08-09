@@ -1,6 +1,6 @@
 from typing import Sequence
 
-from alpacalert.models import Sensor, Scanner, Status
+from alpacalert.models import Scanner, Sensor, Status
 
 
 class SensorRaises(Sensor):
@@ -11,5 +11,3 @@ class SensorRaises(Sensor):
 
 	def children(self) -> Sequence[Scanner]:
 		raise Exception("SensorRaises always raises an exception")
-
-

@@ -311,9 +311,6 @@ class SensorConfigmaps(SensorKubernetes, Sensor):
 			state=State.from_bool(self.k8s.exists("ConfigMap", self.configmap.namespace, self.configmap.name)),
 		)
 
-	def children(self) -> list[Scanner]:
-		return []
-
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("ConfigMap", cls)]
@@ -339,9 +336,6 @@ class SensorSecrets(SensorKubernetes, Sensor):
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("Secret", cls)]
 
-	def children(self) -> list[Scanner]:
-		return []
-
 
 @dataclass
 class SensorStorageclass(SensorKubernetes, Sensor):
@@ -360,9 +354,6 @@ class SensorStorageclass(SensorKubernetes, Sensor):
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [("StorageClass", cls)]
-
-	def children(self) -> list[Scanner]:
-		return []
 
 
 @dataclass
@@ -796,7 +787,7 @@ class SensorIngresses(SensorKubernetes, System):
 	"""Instrument Kubernetes ingresses"""
 
 	@dataclass
-	class Path(SensorKubernetes, Sensor):
+	class Path(SensorKubernetes, System):
 		"""A path within an Ingress"""
 
 		name: str

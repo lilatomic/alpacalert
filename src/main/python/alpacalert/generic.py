@@ -83,9 +83,6 @@ class SensorConstant(Sensor):
 	def status(self) -> Status:
 		return self.val
 
-	def children(self) -> list[Scanner]:
-		return []
-
 	@classmethod
 	def failing(cls, name: str, messages: list[Log]):
 		"""Helper for failing sensors"""

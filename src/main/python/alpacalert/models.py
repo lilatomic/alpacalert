@@ -131,6 +131,9 @@ class Sensor(Scanner, ABC):
 	That could be the status of a running process, available disk space, or availability of a healthcheck endpoint; for example.
 	"""
 
+	def children(self) -> list[Scanner]:
+		return []
+
 
 class System(Scanner, ABC):
 	"""
