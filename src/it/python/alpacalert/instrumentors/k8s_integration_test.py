@@ -9,6 +9,7 @@ from alpacalert.models import Scanner, State
 from alpacalert.transform import NotFoundException, find_path
 
 
+
 @pytest.fixture
 def k8s() -> list[Scanner]:
 	k8s = K8s(kr8s)
@@ -46,6 +47,12 @@ class TestPods:
 		assert volumes[0][0].name == "serviceAccountToken"
 		assert volumes[1][0].children()[0].name == "configmap kube-root-ca.crt exists"
 		assert volumes[2][0].name == "downwardAPI"
+
+	def test_optional_volumes(self, k8s):
+		volumes = find_path(k8s, _idx_into(["pod pod-volumes", "volumes", "*"]))
+		assert len(volumes) == 4
+		for volume in volumes:
+			assert volume.status().state == State.PASSING
 
 
 class TestDeployment:

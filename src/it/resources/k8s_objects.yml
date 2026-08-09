@@ -54,3 +54,54 @@ spec:
   - name: failed-container
     image: busybox:latest
     command: ["sh", "-c", "exit 1"]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-example
+  namespace: aa-pods
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-example
+  namespace: aa-pods
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-volumes
+  namespace: aa-pods
+spec:
+  automountServiceAccountToken: false
+  volumes:
+  - name: configmap-optional
+    configMap:
+      name: configmap-example
+      optional: true
+  - name: configmap
+    configMap:
+      name: configmap-example
+      optional: false
+  - name: secret-optional
+    secret:
+      secretName: secret-example
+      optional: true
+  - name: secret
+    secret:
+      secretName: secret-example
+      optional: false
+  containers:
+    - name: test
+      volumeMounts:
+      - name: configmap-optional
+        mountPath: /configmap-optional
+      - name: configmap
+        mountPath: /configmap
+      - name: secret-optional
+        mountPath: /secret-optional
+      - name: secret
+        mountPath: /secret
+      image: busybox:latest
+      command: ["sh", "-c", "ls /configmap-optional; ls /configmap; ls /secret-optional; ls /secret"]
