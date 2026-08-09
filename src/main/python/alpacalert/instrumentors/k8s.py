@@ -514,7 +514,7 @@ class SensorPods(SensorKubernetes, System):
 
 			def _optional_volume(s: Scanner, optional: bool) -> list[Scanner]:
 				if optional:
-					return [SystemOptional(name="optional", system=s)]
+					return [SystemOptional(name="optional", scanner=s)]
 				else:
 					return [s]
 

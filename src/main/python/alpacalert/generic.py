@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import reduce
 from typing import Sequence
 
-from alpacalert.models import Log, Scanner, Sensor, Service, State, Status, System
+from alpacalert.models import Log, Scanner, Sensor, Service, Severity, State, Status, System
 
 
 class ScannerError(Exception):
@@ -108,10 +108,24 @@ class SystemOptional(System):
 	"""
 
 	name: str
-	system: System
+	scanner: Scanner
 
 	def status(self) -> Status:
 		return Status(state=State.PASSING)
 
 	def children(self) -> list[Scanner]:
-		return [self.system]
+		return [self.scanner]
+
+	def child_statuses(self) -> Sequence[Status]:
+		try:
+			return [self.scanner.status()]
+		except Exception as e:
+			return [
+				Status(
+					state=State.PASSING,
+					messages=[
+						Log(severity=Severity.INFO, message="System is optional"),
+						Log(severity=Severity.INFO, message=str(e)),
+					],
+				)
+			]
