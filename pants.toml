@@ -1,10 +1,11 @@
 [GLOBAL]
-pants_version = "2.25.0rc1"
+pants_version = "2.33.0rc0"
 backend_packages = [
 	"pants.backend.python",
 	"pants.backend.experimental.python",
 	"pants.backend.experimental.python.lint.ruff.check",
-	"pants.backend.python.lint.flake8",
+    "pants.backend.experimental.python.lint.ruff.format",
+    "pants.backend.python.lint.flake8",
 	"pants.backend.python.lint.autoflake",
 	"pants.backend.python.lint.pylint",
 	"pants.backend.python.typecheck.mypy",
@@ -17,6 +18,7 @@ root_patterns = [
 	"src/it/python",
 	"src/it/resources",
 	"src/examples/python",
+    "docs",
 ]
 
 [python]
