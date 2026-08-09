@@ -60,6 +60,9 @@ kind: ConfigMap
 metadata:
   name: configmap-example
   namespace: aa-pods
+data:
+  key0: "value0"
+  key1: "value1"
 ---
 apiVersion: v1
 kind: Secret
@@ -98,10 +101,12 @@ spec:
       - name: configmap-optional
         mountPath: /configmap-optional
       - name: configmap
+        subPath: key0
         mountPath: /configmap
       - name: secret-optional
         mountPath: /secret-optional
       - name: secret
+        subPath: key0
         mountPath: /secret
       image: busybox:latest
       command: ["sh", "-c", "ls /configmap-optional; ls /configmap; ls /secret-optional; ls /secret"]

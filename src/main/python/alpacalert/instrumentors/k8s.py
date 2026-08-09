@@ -1,5 +1,6 @@
 """Instrument all Kubernetes objects"""
 
+import itertools
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -41,6 +42,9 @@ class K8sObjRef:
 	kind: str
 	namespace: str
 	name: str
+
+	def to_query(self):
+		return {"kind": self.kind, "namespace": self.namespace, "name": self.name}
 
 
 @dataclass
@@ -418,13 +422,19 @@ class SensorPods(SensorKubernetes, System):
 				pod_sensors = []
 				phase_sensor = SensorConstant(name="phase", val=Status(state=State.UNKNOWN))
 
-		if "containerStatuses" in self.pod.status:
+		container_sensors = []
+		container_statuses = {e["name"]: e for e in self.pod.status.get("containerStatuses", [])}
+		for container in self.pod.spec.containers:
+			container_sensors.append(
+				self.registry.instrument(
+					k8skind("Pod#container"), pod=self.pod, container=container, container_status=container_statuses.get(container["name"])
+				)
+			)
+
+		if container_sensors:
 			container_sensor = SystemAll(
 				name="containers",
-				scanners=flatten(
-					self.registry.instrument(k8skind("Pod#container"), namespace=self.pod.namespace, pod_name=self.pod.name, container_status=e)
-					for e in self.pod.status.containerStatuses
-				),
+				scanners=flatten(container_sensors),
 			)
 		else:
 			container_sensor = SensorConstant.failing(name="containers", messages=[])  # TODO: more meaningful recovery
@@ -441,19 +451,21 @@ class SensorPods(SensorKubernetes, System):
 	status = status_all
 
 	@dataclass
-	class Container(SensorKubernetes, Sensor):
+	class Container(SensorKubernetes, System):
 		"""A container within a pod."""
 
-		namespace: str
-		pod_name: str
+		container: dict
+		pod: kr8s.objects.Pod
 		container_status: Any
 
 		@property
 		def name(self):
 			"""Name"""
-			return f"Container status: {self.container_status.name}"
+			return f"Container status: {self.container.name}"
 
-		def status(self) -> Status:
+		status = status_all
+
+		def lifecycle_status(self) -> Status:
 			"""Instrument a container"""
 			# TODO: add state as message
 			if "running" in self.container_status.state:
@@ -480,7 +492,10 @@ class SensorPods(SensorKubernetes, System):
 			return Status(state=state, messages=messages)
 
 		def children(self) -> list[Sensor]:
-			return []
+			o: list[Scanner] = [SensorConstant("container_status", self.lifecycle_status())]
+			for volume_mount in self.container.get("volumeMounts", []):
+				o.extend(self.registry.instrument(k8skind("Pod#volumemount"), pod=self.pod, mount=volume_mount))
+			return o
 
 		@classmethod
 		def registrations(cls) -> SensorKubernetes.Registrations:
@@ -499,22 +514,29 @@ class SensorPods(SensorKubernetes, System):
 			"""Name"""
 			return f"volume {self.volume_name}"
 
+		@staticmethod
+		def _optional_volume(s: Scanner, optional: bool) -> list[Scanner]:
+			if optional:
+				return [SystemOptional(name="optional", scanner=s)]
+			else:
+				return [s]
+
 		# pylint: disable=too-many-return-statements
 		def children(self) -> list[Scanner]:
 			"""Instrument volumes on a pod"""
 
-			def _optional_volume(s: Scanner, optional: bool) -> list[Scanner]:
-				if optional:
-					return [SystemOptional(name="optional", scanner=s)]
-				else:
-					return [s]
-
 			if "configMap" in self.volume:
-				sensor = SystemAll(name="configmap", scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=K8sObjRef("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])))]))
-				return _optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
+				sensor = SystemAll(
+					name="configmap",
+					scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=K8sObjRef("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])))]),
+				)
+				return self._optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
 			elif "secret" in self.volume:
-				sensor = SystemAll(name="secret", scanners=flatten([(self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, self.volume["secret"]["secretName"])))]))
-				return _optional_volume(sensor, optional=self.volume["secret"].get("optional", False))
+				sensor = SystemAll(
+					name="secret",
+					scanners=flatten([(self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, self.volume["secret"]["secretName"])))]),
+				)
+				return self._optional_volume(sensor, optional=self.volume["secret"].get("optional", False))
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
 			elif "projected" in self.volume:
@@ -542,12 +564,94 @@ class SensorPods(SensorKubernetes, System):
 		def registrations(cls) -> SensorKubernetes.Registrations:
 			return [("Pod#volume", cls)]
 
+	@dataclass
+	class VolumeSubPath(SensorKubernetes, Sensor):
+		pod: kr8s.objects.Pod
+		path: str
+		volume: dict
+
+		@property
+		def name(self):
+			return f"volume {self.volume['name']} subpath {self.path}"
+
+		def status(self) -> Status:
+			target = self.get_target(self.volume)
+			if not target:
+				return Status(state=State.FAILING, messages=[Log(message="volume not found", severity=Severity.ERROR)])
+
+			return self.find_path(self.keyset(target))
+
+		def get_target(self, volume) -> list[kr8s.objects.APIObject]:
+			if "secret" in volume:
+				return [self.k8s.get("Secret", self.pod.namespace, volume["secret"]["secretName"])]
+			elif "configMap" in volume:
+				return [self.k8s.get("ConfigMap", self.pod.namespace, volume["configMap"]["name"])]
+			elif "projected" in volume:
+				return itertools.chain.from_iterable([self.get_target(nested) for nested in volume["projected"]["sources"]])
+			else:
+				return []
+
+		def keyset(self, target: list[kr8s.objects.APIObject]) -> set[str]:
+			o = set()
+			for t in target:
+				o.update(t.raw.get("data", {}))
+				o.update(t.raw.get("binaryData", {}))
+			return o
+
+		def find_path(self, keyset) -> Status:
+			if not keyset:
+				return Status(state=State.FAILING, messages=[Log(message=f"volume {self.volume.name} has no data", severity=Severity.ERROR)])
+
+			if self.path not in keyset:
+				return Status(state=State.FAILING, messages=[Log(message=f"volume {self.volume.name} has no key {self.path}", severity=Severity.ERROR)])
+			return Status(state=State.PASSING, messages=[Log(message=f"volume {self.volume.name} has key {self.path}", severity=Severity.INFO)])
+
+		@classmethod
+		def registrations(cls) -> SensorKubernetes.Registrations:
+			return [("Pod#volumesubpath", cls)]
+
+	@dataclass
+	class VolumeMount(SensorKubernetes, System):
+		"""A volume mounted into a container"""
+
+		pod: kr8s.objects.Pod
+		mount: Any
+
+		@property
+		def name(self) -> str:
+			return f"mount {self.mount['name']}"
+
+		status = status_all
+
+		def children(self) -> Sequence[Scanner]:
+			scanners = []
+			target_volume_name = self.mount["name"]
+
+			defined_volumes = {v.get("name"): v for v in self.pod.spec.volumes}
+			if target_volume_name not in defined_volumes:
+				return [SensorConstant.failing(f"volume {target_volume_name} is defined", [Log(message="volume is not defined in the spec", severity=Severity.ERROR)])]
+			else:
+				volume = defined_volumes[target_volume_name]
+				presence_sensor = SensorConstant(name=f"volume {target_volume_name} is defined", val=Status(state=State.PASSING))
+				scanners.append(presence_sensor)
+
+			if "subPath" in self.mount:
+				scanners.extend(self.registry.instrument(k8skind("Pod#volumesubpath"), pod=self.pod, path=self.mount["subPath"], volume=volume))
+
+			return [*scanners, *self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=target_volume_name, volume=volume)]
+
+		@classmethod
+		def registrations(cls) -> SensorKubernetes.Registrations:
+			return [("Pod#volumemount", cls)]
+
 	@classmethod
 	def registrations(cls) -> SensorKubernetes.Registrations:
 		return [
 			("Pod", cls),
 			*cls.Container.registrations(),
 			*cls.Volume.registrations(),
+			*cls.VolumeMount.registrations(),
+			*cls.VolumeSubPath.registrations(),
 		]
 
 
