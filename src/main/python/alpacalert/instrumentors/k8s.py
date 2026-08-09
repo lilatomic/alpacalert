@@ -521,8 +521,7 @@ class SensorPods(SensorKubernetes, System):
 			# TODO: volume from secret
 
 			if "configMap" in self.volume:
-				configmap = self.k8s.get("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])
-				sensor = SystemAll(name="configmap", scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=configmap))]))
+				sensor = SystemAll(name="configmap", scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=K8sObjRef("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])))]))
 				return _optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
