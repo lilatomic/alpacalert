@@ -426,9 +426,7 @@ class SensorPods(SensorKubernetes, System):
 		container_statuses = {e["name"]: e for e in self.pod.status.get("containerStatuses", [])}
 		for container in self.pod.spec.containers:
 			container_sensors.append(
-				self.registry.instrument(
-					k8skind("Pod#container"), pod=self.pod, container=container, container_status=container_statuses.get(container["name"])
-				)
+				self.registry.instrument(k8skind("Pod#container"), pod=self.pod, container=container, container_status=container_statuses.get(container["name"]))
 			)
 
 		if container_sensors:
