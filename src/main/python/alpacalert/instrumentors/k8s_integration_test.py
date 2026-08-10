@@ -69,5 +69,4 @@ class TestCronjob:
 			pods = find_path(k8s, _idx_into(["cronjob hello", "jobs", "*", "pods", "*"]))
 			assert len(pods) > 0  # there might be several from leftover jobs
 		except NotFoundException:
-			print(k8s)
 			raise

@@ -20,7 +20,7 @@ def find_scanners(scanners: Sequence[Scanner], name: str) -> Sequence[Scanner]:
 			found.append(scanner)
 
 	if not found:
-		raise NotFoundException(f"scanner not found in children {name=} n={len(scanners)}")
+		raise NotFoundException(f"scanner not found in children {name=} n={len(scanners)} children={[scanner.name for scanner in scanners]}")
 	return found
 
 

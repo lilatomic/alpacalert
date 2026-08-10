@@ -77,7 +77,7 @@ class K8s:
 			return list(self._cache_get_all[k].values())
 		else:
 			lc.debug("cache miss %s", k)
-			v = self.kr8s.get(kind, namespace=namespace)
+			v = list(self.kr8s.get(kind, namespace=namespace))
 			self._add_to_cache(v)
 			return v
 
