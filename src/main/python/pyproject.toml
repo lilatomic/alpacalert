@@ -1,6 +1,6 @@
 [project]
 name = "alpacalert"
-version = "0.1.1"
+version = "0.1.2"
 description = "Alpacalert is a monitoring tool which understands your infrastructure as interacting services"
 readme = "README.md"
 
