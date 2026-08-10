@@ -521,6 +521,7 @@ class SensorPods(SensorKubernetes, System):
 		pod: kr8s.objects.Pod
 		volume_name: str
 		volume: Any
+		is_projection: bool = False  # projected volumes have a slightly different schema
 
 		@property
 		def name(self):
@@ -545,9 +546,10 @@ class SensorPods(SensorKubernetes, System):
 				)
 				return self._optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
 			elif "secret" in self.volume:
+				tok_secret_name = "secretName" if not self.is_projection else "name"
 				sensor = SystemAll(
 					name="secret",
-					scanners=flatten([(self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, self.volume["secret"]["secretName"])))]),
+					scanners=flatten([(self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, self.volume["secret"][tok_secret_name])))]),
 				)
 				return self._optional_volume(sensor, optional=self.volume["secret"].get("optional", False))
 			elif "hostPath" in self.volume:
@@ -557,7 +559,7 @@ class SensorPods(SensorKubernetes, System):
 					SystemAll(
 						name="projected volume",
 						scanners=flatten(
-							[self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=str(i), volume=v) for i, v in enumerate(self.volume["projected"]["sources"])]
+							[self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=str(i), volume=v, is_projection=True) for i, v in enumerate(self.volume["projected"]["sources"])]
 						),
 					)
 				]
@@ -594,13 +596,14 @@ class SensorPods(SensorKubernetes, System):
 
 			return self.find_path(self.keyset(target))
 
-		def get_target(self, volume) -> list[kr8s.objects.APIObject]:
+		def get_target(self, volume, is_projection: bool = False) -> list[kr8s.objects.APIObject]:
 			if "secret" in volume:
-				return [self.k8s.get("Secret", self.pod.namespace, volume["secret"]["secretName"])]
+				tok_secret_name = "secretName" if not is_projection else "name"
+				return [self.k8s.get("Secret", self.pod.namespace, volume["secret"][tok_secret_name])]
 			elif "configMap" in volume:
 				return [self.k8s.get("ConfigMap", self.pod.namespace, volume["configMap"]["name"])]
 			elif "projected" in volume:
-				return itertools.chain.from_iterable([self.get_target(nested) for nested in volume["projected"]["sources"]])
+				return itertools.chain.from_iterable([self.get_target(nested, is_projection=True) for nested in volume["projected"]["sources"]])
 			else:
 				return []
 
