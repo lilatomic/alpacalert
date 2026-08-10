@@ -115,7 +115,12 @@ class Scanner(ABC):
 	def child_statuses(self) -> list[Status]:
 		"""The statuses of this scanner's children"""
 		statuses = []
-		for child in self.children():
+		try:
+			children = self.children()
+		except Exception as e:
+			return [failed_discovery(e)]
+
+		for child in children:
 			try:
 				statuses.append(child.status())
 			except Exception as e:
