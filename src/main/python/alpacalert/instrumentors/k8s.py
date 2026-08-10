@@ -422,29 +422,38 @@ class SensorPods(SensorKubernetes, System):
 				pod_sensors = []
 				phase_sensor = SensorConstant(name="phase", val=Status(state=State.UNKNOWN))
 
-		container_sensors = []
-		container_statuses = {e["name"]: e for e in self.pod.status.get("containerStatuses", [])}
-		for container in self.pod.spec.containers:
-			container_sensors.append(
-				self.registry.instrument(k8skind("Pod#container"), pod=self.pod, container=container, container_status=container_statuses.get(container["name"]))
-			)
+		container_sensor = self._instrument_containerlike(initcontainers=False)
+		initcontainer_sensor = self._instrument_containerlike(initcontainers=True)
 
-		if container_sensors:
-			container_sensor = SystemAll(
-				name="containers",
-				scanners=flatten(container_sensors),
-			)
-		else:
-			container_sensor = SensorConstant.failing(name="containers", messages=[])  # TODO: more meaningful recovery
 		scanners = [
 			*pod_sensors,
 			phase_sensor,
-			container_sensor,
+			*container_sensor,
+			*initcontainer_sensor,
 			SystemAll(
 				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.volumes])
 			),
 		]
 		return scanners
+
+	def _instrument_containerlike(self, initcontainers: bool) -> list[Scanner]:
+		container_sensors = []
+		_status_key = "initContainerStatuses" if initcontainers else "containerStatuses"
+		container_statuses = {e["name"]: e for e in self.pod.status.get(_status_key, [])}
+		containers = self.pod.spec.get("initContainers", []) if initcontainers else self.pod.spec.containers
+		for container in containers:
+			container_sensors.append(
+				self.registry.instrument(k8skind("Pod#container"), pod=self.pod, container=container, container_status=container_statuses.get(container["name"]))
+			)
+
+		sensor_name = "init containers" if initcontainers else "containers"
+		if container_sensors:
+			return [SystemAll(name=sensor_name, scanners=flatten(container_sensors))]
+		else:
+			if initcontainers:
+				return []
+			else:
+				return [SensorConstant.failing(name="containers", messages=[])]
 
 	status = status_all
 
@@ -470,9 +479,15 @@ class SensorPods(SensorKubernetes, System):
 				state = State.from_bool(self.container_status.ready and self.container_status.started)
 				messages = [Log(message="running", severity=Severity.INFO)]
 			elif "terminated" in self.container_status.state:
-				terminated_successfully = self.container_status.get("state", {}).get("terminated", {}).get("reason") == "Completed"
-				state = State.from_bool(not self.container_status.ready and not self.container_status.started and terminated_successfully)
-				messages = [Log(message="terminated", severity=Severity.ERROR)]
+				# 'ready' is not relevant for terminated containers, the exit code is sufficient
+				exit_code = self.container_status.get("state", {}).get("terminated", {}).get("exitCode")
+				termination_reason = self.container_status.get("state", {}).get("terminated", {}).get("reason")
+				terminated_successfully = exit_code == 0
+				state = State.from_bool(not self.container_status.started and terminated_successfully)
+				if not terminated_successfully:
+					messages = [Log(message=f"exited with exit code {exit_code} (reason: {termination_reason})", severity=Severity.ERROR)]
+				else:
+					messages = [Log(message=f"terminated successfully with exit code {exit_code} (reason: {termination_reason})", severity=Severity.INFO)]
 			elif "waiting" in self.container_status.state:
 				state = State.FAILING
 				details = self.container_status.state.waiting
@@ -566,7 +581,7 @@ class SensorPods(SensorKubernetes, System):
 	class VolumeSubPath(SensorKubernetes, Sensor):
 		pod: kr8s.objects.Pod
 		path: str
-		volume: dict
+		volume: Any
 
 		@property
 		def name(self):

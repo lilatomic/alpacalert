@@ -110,3 +110,20 @@ spec:
         mountPath: /secret
       image: busybox:latest
       command: ["sh", "-c", "ls /configmap-optional; ls /configmap; ls /secret-optional; ls /secret"]
+---
+# pod with init containers
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-initcontainers
+  namespace: aa-pods
+spec:
+  restartPolicy: Never
+  initContainers:
+    - name: init-container
+      image: busybox:latest
+      command: ["sh", "-c", "exit 0"]
+  containers:
+    - name: failed-container
+      image: busybox:latest
+      command: ["sh", "-c", "sleep infinity"]
