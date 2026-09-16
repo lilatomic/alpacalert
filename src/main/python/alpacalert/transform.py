@@ -1,6 +1,6 @@
 from typing import Sequence
 
-from alpacalert.models import Scanner
+from alpacalert.models import Scanner, State
 
 
 class NotFoundException(Exception):
@@ -40,3 +40,9 @@ def find_path(scanners: Sequence[Scanner], path: Sequence[str]) -> Sequence[Scan
 		children = sum((list(tgt.children()) for tgt in tgts), start=[])
 
 	return tgts
+
+
+def assert_state(scanner: Scanner, desired_status: State) -> None:
+	state = scanner.status().state
+	if state != desired_status:
+		raise AssertionError(f"scanner {scanner.name} has status {state} but expected {desired_status}")

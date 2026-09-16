@@ -55,10 +55,22 @@ class TestPods:
 			assert volume.status().state == State.PASSING
 
 	def test_env_from(self, k8s):
-		env_from = find_path(k8s, _idx_into(["pod pod-envfrom", "containers", "*", "envFrom", "*"]))
+		env_from = find_path(k8s, _idx_into(["pod pod-env", "containers", "*", "envFrom", "*"]))
 		assert len(env_from) == 2
 		assert env_from[0].name == "configmap"
 		assert env_from[1].name == "secret"
+
+	def test_env_valueFrom(self, k8s):
+		env_value_from = find_path(k8s, _idx_into(["pod pod-env", "containers", "*", "env", "*"]))
+		assert len(env_value_from) == 4
+
+		statuses = {e.name.rsplit(maxsplit=1)[-1]: e.status().state for e in env_value_from}
+		assert statuses == {
+			"CONFIGMAP_OPTIONAL": State.PASSING,
+			"CONFIGMAP_KEY0": State.PASSING,
+			"SECRET_OPTIONAL": State.PASSING,
+			"SECRET_KEY0": State.PASSING,
+		}
 
 
 class TestDeployment:

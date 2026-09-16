@@ -69,7 +69,9 @@ kind: Secret
 metadata:
   name: secret-example
   namespace: aa-pods
-
+stringData:
+  key0: "value0"
+  key1: "value1"
 ---
 apiVersion: v1
 kind: Pod
@@ -81,7 +83,7 @@ spec:
   volumes:
   - name: configmap-optional
     configMap:
-      name: configmap-example
+      name: configmap-example-missing
       optional: true
   - name: configmap
     configMap:
@@ -89,7 +91,7 @@ spec:
       optional: false
   - name: secret-optional
     secret:
-      secretName: secret-example
+      secretName: secret-example-missing
       optional: true
   - name: secret
     secret:
@@ -114,7 +116,7 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-envfrom
+  name: pod-env
   namespace: aa-pods
 spec:
   automountServiceAccountToken: false
@@ -125,6 +127,29 @@ spec:
             name: configmap
         - secretRef:
             name: secret
+      env:
+        - name: CONFIGMAP_OPTIONAL
+          valueFrom:
+            configMapKeyRef:
+              name: configmap-example-missing
+              optional: true
+              key: key0
+        - name: CONFIGMAP_KEY0
+          valueFrom:
+            configMapKeyRef:
+              name: configmap-example
+              key: key0
+        - name: SECRET_OPTIONAL
+          valueFrom:
+            secretKeyRef:
+              name: secret-example-missing
+              optional: true
+              key: key0
+        - name: SECRET_KEY0
+          valueFrom:
+            secretKeyRef:
+              name: secret-example
+              key: key0
       image: busybox:latest
       command: [ "sh", "-c", "env" ]
 ---

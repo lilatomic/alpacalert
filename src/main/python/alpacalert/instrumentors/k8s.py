@@ -12,6 +12,7 @@ import kr8s
 
 from alpacalert.generic import SensorConstant, SystemAll, SystemAny, SystemOptional, status_all
 from alpacalert.instrumentor import Instrumentor, InstrumentorError, InstrumentorRegistry, Kind, Registrations
+from alpacalert.instrumentors.k8s_utils import FindKeyInObject
 from alpacalert.models import Log, Scanner, Sensor, Severity, State, Status, System, flatten
 
 lc = logging.getLogger("alpacalert.cache")
@@ -431,7 +432,8 @@ class SensorPods(SensorKubernetes, System):
 			*container_sensor,
 			*initcontainer_sensor,
 			SystemAll(
-				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.get("volumes", [])])
+				name="volumes",
+				scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.get("volumes", [])]),
 			),
 		]
 		return scanners
@@ -505,9 +507,9 @@ class SensorPods(SensorKubernetes, System):
 			return Status(state=state, messages=messages)
 
 		def envFrom_list(self) -> Scanner:
-			return SystemAll(name="envFrom", scanners=[self.envFrom(ref) for ref in (self.container.get("envFrom", []))])
+			return SystemAll(name="envFrom", scanners=[self._envFrom_item(ref) for ref in (self.container.get("envFrom", []))])
 
-		def envFrom(self, envFrom: dict) -> Scanner:
+		def _envFrom_item(self, envFrom: dict) -> Scanner:
 			if "configMapRef" in envFrom:
 				return SystemAll(
 					name="configmap",
@@ -515,16 +517,54 @@ class SensorPods(SensorKubernetes, System):
 				)
 			elif "secretRef" in envFrom:
 				return SystemAll(
-					name="secret", scanners=[self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, envFrom["secretRef"]["name"]))],
+					name="secret",
+					scanners=[self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, envFrom["secretRef"]["name"]))],
 				)
 			else:
 				return SystemAll(name="unknown", scanners=[])
+
+		def env_list(self) -> Scanner:
+			return SystemAll(name="env", scanners=list(filter(None, [self._env_item(env) for env in (self.container.get("env", []))])))
+
+		def _env_item(self, item) -> Scanner | None:
+			"""
+			Instrument an envvar request.
+
+			see [EnvVarSource](https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#EnvVarSource)
+			"""
+			# a normal envvar with value specified
+			if "value" in item:
+				return None
+			src = item.get("valueFrom")
+
+			# fieldRef references a value on the pod itself, which will always resolve correctly
+			if "fieldRef" in src or "resourceFieldRef" in src:
+				return None
+
+			if ref := src.get("configMapKeyRef"):
+				target = self.k8s.get("ConfigMap", self.pod.namespace, ref["name"])
+			elif ref := src.get("secretKeyRef"):
+				target = self.k8s.get("Secret", self.pod.namespace, ref["name"])
+			else:
+				# TODO: invalid pod spec
+				return None
+
+			if not target:
+				return SystemOptional.wrap(
+					SensorConstant(
+						f"envvar reference {item['name']}", Status(state=State.FAILING, messages=[Log(message="target of envvar reference not found", severity=Severity.ERROR)])
+					),
+					ref.get("optional", False),
+				)
+
+			return SystemOptional.wrap(SensorConstant(f"envvar reference {item['name']}", FindKeyInObject(item["name"], ref["key"]).find([target])), ref.get("optional", False))
 
 		def children(self) -> list[Sensor]:
 			o: list[Scanner] = [SensorConstant("container_status", self.lifecycle_status())]
 			for volume_mount in self.container.get("volumeMounts", []):
 				o.extend(self.registry.instrument(k8skind("Pod#volumemount"), pod=self.pod, mount=volume_mount))
 			o.append(self.envFrom_list())
+			o.append(self.env_list())
 			return o
 
 		@classmethod
@@ -545,13 +585,6 @@ class SensorPods(SensorKubernetes, System):
 			"""Name"""
 			return f"volume {self.volume_name}"
 
-		@staticmethod
-		def _optional_volume(s: Scanner, optional: bool) -> list[Scanner]:
-			if optional:
-				return [SystemOptional(name="optional", scanner=s)]
-			else:
-				return [s]
-
 		# pylint: disable=too-many-return-statements
 		def children(self) -> list[Scanner]:
 			"""Instrument volumes on a pod"""
@@ -561,14 +594,14 @@ class SensorPods(SensorKubernetes, System):
 					name="configmap",
 					scanners=flatten([(self.registry.instrument(k8skind("ConfigMap"), configmap=K8sObjRef("ConfigMap", self.pod.namespace, self.volume["configMap"]["name"])))]),
 				)
-				return self._optional_volume(sensor, optional=self.volume["configMap"].get("optional", False))
+				return [SystemOptional.wrap(sensor, optional=self.volume["configMap"].get("optional", False))]
 			elif "secret" in self.volume:
 				tok_secret_name = "secretName" if not self.is_projection else "name"
 				sensor = SystemAll(
 					name="secret",
 					scanners=flatten([(self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, self.volume["secret"][tok_secret_name])))]),
 				)
-				return self._optional_volume(sensor, optional=self.volume["secret"].get("optional", False))
+				return [SystemOptional.wrap(sensor, optional=self.volume["secret"].get("optional", False))]
 			elif "hostPath" in self.volume:
 				return [SensorConstant.passing(f"hostMount {self.volume_name}", [])]
 			elif "projected" in self.volume:
@@ -601,6 +634,7 @@ class SensorPods(SensorKubernetes, System):
 
 	@dataclass
 	class VolumeSubPath(SensorKubernetes, Sensor):
+		# TODO: should we generalise this to handle the other types of subpath, and pull the `get_target` up a level?
 		pod: kr8s.objects.Pod
 		path: str
 		volume: Any
@@ -614,7 +648,7 @@ class SensorPods(SensorKubernetes, System):
 			if not target:
 				return Status(state=State.FAILING, messages=[Log(message="volume not found", severity=Severity.ERROR)])
 
-			return self.find_path(self.keyset(target))
+			return FindKeyInObject(self.volume["name"], self.path).find(target)
 
 		def get_target(self, volume, is_projection: bool = False) -> list[kr8s.objects.APIObject]:
 			if "secret" in volume:
@@ -626,21 +660,6 @@ class SensorPods(SensorKubernetes, System):
 				return itertools.chain.from_iterable([self.get_target(nested, is_projection=True) for nested in volume["projected"]["sources"]])
 			else:
 				return []
-
-		def keyset(self, target: list[kr8s.objects.APIObject]) -> set[str]:
-			o = set()
-			for t in target:
-				o.update(t.raw.get("data", {}))
-				o.update(t.raw.get("binaryData", {}))
-			return o
-
-		def find_path(self, keyset) -> Status:
-			if not keyset:
-				return Status(state=State.FAILING, messages=[Log(message=f"volume {self.volume.name} has no data", severity=Severity.ERROR)])
-
-			if self.path not in keyset:
-				return Status(state=State.FAILING, messages=[Log(message=f"volume {self.volume.name} has no key {self.path}", severity=Severity.ERROR)])
-			return Status(state=State.PASSING, messages=[Log(message=f"volume {self.volume.name} has key {self.path}", severity=Severity.INFO)])
 
 		@classmethod
 		def registrations(cls) -> SensorKubernetes.Registrations:

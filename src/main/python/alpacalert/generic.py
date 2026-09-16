@@ -126,3 +126,16 @@ class SystemOptional(System):
 					],
 				)
 			]
+
+	@classmethod
+	def wrap(cls, s: Scanner, optional: bool = True) -> Scanner:
+		"""
+		Wrap a scanner.
+
+		The `optional` flag is used to toggle whether the sensor is wrapped.
+		This is useful for integrations which have an explicit toggle for optionality.
+		For example, Kubernetes volumes have a parameter `optional`.
+		"""
+		if optional:
+			return cls(name=s.name, scanner=s)
+		return s
