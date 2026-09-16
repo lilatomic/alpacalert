@@ -111,6 +111,23 @@ spec:
       image: busybox:latest
       command: ["sh", "-c", "ls /configmap-optional; ls /configmap; ls /secret-optional; ls /secret"]
 ---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-envfrom
+  namespace: aa-pods
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: test
+      envFrom:
+        - configMapRef:
+            name: configmap
+        - secretRef:
+            name: secret
+      image: busybox:latest
+      command: [ "sh", "-c", "env" ]
+---
 # pod with init containers
 apiVersion: v1
 kind: Pod

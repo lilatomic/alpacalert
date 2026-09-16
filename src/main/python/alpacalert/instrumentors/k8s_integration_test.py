@@ -2,6 +2,7 @@
 
 import kr8s
 import pytest
+
 from alpacalert.generic import ServiceBasic, SystemAll
 from alpacalert.instrumentor import Kind
 from alpacalert.instrumentors.k8s import InstrumentorK8sRegistry, K8s
@@ -52,6 +53,12 @@ class TestPods:
 		assert len(volumes) == 4
 		for volume in volumes:
 			assert volume.status().state == State.PASSING
+
+	def test_env_from(self, k8s):
+		env_from = find_path(k8s, _idx_into(["pod pod-envfrom", "containers", "*", "envFrom", "*"]))
+		assert len(env_from) == 2
+		assert env_from[0].name == "configmap"
+		assert env_from[1].name == "secret"
 
 
 class TestDeployment:

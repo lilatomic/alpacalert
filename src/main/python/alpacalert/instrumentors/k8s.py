@@ -431,13 +431,13 @@ class SensorPods(SensorKubernetes, System):
 			*container_sensor,
 			*initcontainer_sensor,
 			SystemAll(
-				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.volumes])
+				name="volumes", scanners=flatten([self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=v["name"], volume=v) for v in self.pod.spec.get("volumes", [])])
 			),
 		]
 		return scanners
 
 	def _instrument_containerlike(self, initcontainers: bool) -> list[Scanner]:
-		container_sensors = []
+		container_sensors: list[Scanner] = []
 		_status_key = "initContainerStatuses" if initcontainers else "containerStatuses"
 		container_statuses = {e["name"]: e for e in self.pod.status.get(_status_key, [])}
 		containers = self.pod.spec.get("initContainers", []) if initcontainers else self.pod.spec.containers
@@ -504,10 +504,27 @@ class SensorPods(SensorKubernetes, System):
 
 			return Status(state=state, messages=messages)
 
+		def envFrom_list(self) -> Scanner:
+			return SystemAll(name="envFrom", scanners=[self.envFrom(ref) for ref in (self.container.get("envFrom", []))])
+
+		def envFrom(self, envFrom: dict) -> Scanner:
+			if "configMapRef" in envFrom:
+				return SystemAll(
+					name="configmap",
+					scanners=[self.registry.instrument(k8skind("ConfigMap"), configmap=K8sObjRef("ConfigMap", self.pod.namespace, envFrom["configMapRef"]["name"]))],
+				)
+			elif "secretRef" in envFrom:
+				return SystemAll(
+					name="secret", scanners=[self.registry.instrument(k8skind("Secret"), secret=K8sObjRef("Secret", self.pod.namespace, envFrom["secretRef"]["name"]))],
+				)
+			else:
+				return SystemAll(name="unknown", scanners=[])
+
 		def children(self) -> list[Sensor]:
 			o: list[Scanner] = [SensorConstant("container_status", self.lifecycle_status())]
 			for volume_mount in self.container.get("volumeMounts", []):
 				o.extend(self.registry.instrument(k8skind("Pod#volumemount"), pod=self.pod, mount=volume_mount))
+			o.append(self.envFrom_list())
 			return o
 
 		@classmethod
@@ -559,7 +576,10 @@ class SensorPods(SensorKubernetes, System):
 					SystemAll(
 						name="projected volume",
 						scanners=flatten(
-							[self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=str(i), volume=v, is_projection=True) for i, v in enumerate(self.volume["projected"]["sources"])]
+							[
+								self.registry.instrument(k8skind("Pod#volume"), pod=self.pod, volume_name=str(i), volume=v, is_projection=True)
+								for i, v in enumerate(self.volume["projected"]["sources"])
+							]
 						),
 					)
 				]
